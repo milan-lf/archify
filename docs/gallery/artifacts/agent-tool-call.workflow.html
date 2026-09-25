@@ -1101,6 +1101,74 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     .diagram-container [data-drill-to] { cursor: zoom-in; }
     .diagram-container [data-drill-to]:hover { filter: brightness(1.08); }
 
+    /* Drill affordance: a magnifier in the node's own top-right corner. */
+    .level-drill-badge { cursor: zoom-in; }
+    .level-drill-badge-disc {
+      fill: var(--panel);
+      stroke: var(--text-muted);
+      stroke-width: 1.1;
+      opacity: 0.94;
+    }
+    .level-drill-badge-glyph {
+      fill: none;
+      stroke: var(--text-muted);
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .level-drill-badge:hover .level-drill-badge-disc,
+    .level-drill-badge:focus-visible .level-drill-badge-disc {
+      stroke: var(--arrow-emphasis);
+      opacity: 1;
+    }
+    .level-drill-badge:hover .level-drill-badge-glyph,
+    .level-drill-badge:focus-visible .level-drill-badge-glyph { stroke: var(--arrow-emphasis); }
+    .level-drill-badge:focus-visible { outline: none; }
+    .level-drill-badge:focus-visible .level-drill-badge-disc { stroke-width: 2; }
+
+    /* A drilled level reads as a framed stage with its own way back out. */
+    .diagram-container[data-level-drilled="true"] {
+      box-shadow: inset 0 0 0 1px var(--panel-border);
+    }
+    .level-zoom-out {
+      position: absolute;
+      top: 0.75rem;
+      right: 0.75rem;
+      z-index: 4;
+    }
+    .level-zoom-out[hidden] { display: none; }
+    .level-zoom-out-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.3rem 0.6rem;
+      border: 1px solid var(--toolbar-border);
+      border-radius: 0.45rem;
+      background: var(--toolbar-bg);
+      color: var(--toolbar-text);
+      font: inherit;
+      font-size: 0.72rem;
+      line-height: 1;
+      cursor: zoom-out;
+    }
+    .level-zoom-out-btn:hover { background: var(--toolbar-hover); color: var(--text); }
+    .level-zoom-out-btn svg {
+      /* The bare svg rule floors every diagram at min-width: min(900px, 100%);
+         this icon is chrome, not a diagram, so it opts out of that floor. */
+      width: 0.85rem;
+      height: 0.85rem;
+      min-width: 0;
+      flex: 0 0 auto;
+      display: block;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.6;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    html[data-embed="true"] .level-zoom-out,
+    html[data-present="true"] .level-zoom-out { display: none; }
+
     .diagram-container.is-camera-moving svg {
       transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
     }
@@ -5718,6 +5786,16 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       return {
         container: function () { return container; },
         svg: svg,
+        // Stage-bound modules delegate to the container so a level swap cannot
+        // strand a listener, but the passport, finder and other chrome live in
+        // that same container. Only events raised on a level canvas are canvas
+        // input; everything else belongs to the chrome that raised it.
+        fromCanvas: function (event) {
+          var target = event && event.target;
+          if (!target || typeof target.closest !== 'function') return false;
+          var owner = target.closest('svg');
+          return !!(owner && owner.parentNode === container);
+        },
         onChange: function (listener) {
           if (typeof listener === 'function') listeners.push(listener);
         },
@@ -6044,6 +6122,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         clone.removeAttribute('data-level');
         clone.removeAttribute('data-level-label');
         clone.removeAttribute('data-level-active');
+        Array.prototype.forEach.call(clone.querySelectorAll('[data-drill-badge]'), function (el) {
+          el.remove();
+        });
         Array.prototype.forEach.call(clone.querySelectorAll('[data-drill-to]'), function (el) {
           el.removeAttribute('data-drill-to');
         });
@@ -7435,7 +7516,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     Archify.motionGovernor = (function () {
       var STORAGE_KEY = 'archify-motion';
       var html = document.documentElement;
-      var svg = document.querySelector('.diagram-container svg');
+      var stageContainer = Archify.stage.container();
+      var svg = Archify.stage.svg();
       var btn = document.getElementById('btn-motion');
       var label = document.getElementById('motion-label');
       var motionQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
@@ -7452,8 +7534,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
       function detachAmbientBoundary() {
         if (!svg) return;
-        svg.removeEventListener('animationend', onAmbientBoundary, true);
-        svg.removeEventListener('animationcancel', onAmbientBoundary, true);
+        stageContainer.removeEventListener('animationend', onAmbientBoundary, true);
+        stageContainer.removeEventListener('animationcancel', onAmbientBoundary, true);
       }
       function settleAmbient(reason) {
         if (!capable) return false;
@@ -7474,8 +7556,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         ambientStarted = true;
         ambientPending = new Set(Array.prototype.slice.call(svg.querySelectorAll('[data-animate="edge"], [data-animate="node"]')));
         if (!ambientPending.size) return settleAmbient('empty');
-        svg.addEventListener('animationend', onAmbientBoundary, true);
-        svg.addEventListener('animationcancel', onAmbientBoundary, true);
+        stageContainer.addEventListener('animationend', onAmbientBoundary, true);
+        stageContainer.addEventListener('animationcancel', onAmbientBoundary, true);
         html.setAttribute('data-ambient-motion', 'running');
         html.removeAttribute('data-ambient-settle-reason');
         return true;
@@ -7661,13 +7743,22 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       document.addEventListener('visibilitychange', syncVisibility);
       if (document.documentElement.getAttribute('data-embed') !== 'true' && typeof MutationObserver !== 'undefined' && typeof Node !== 'undefined' && svg instanceof Node) {
         var ownerObserver = new MutationObserver(function () { publishOwner(); });
-        ownerObserver.observe(svg, {
+        var ownerObserverOptions = {
           attributes: true,
           attributeFilter: [
             'data-story-playing', 'data-story-follow', 'data-story-active', 'data-route-picking', 'data-route-active',
             'data-lens-active', 'data-relationship-preview-active', 'data-intent-trace-active',
             'data-focus-active', 'data-legend-preview-active'
           ]
+        };
+        ownerObserver.observe(svg, ownerObserverOptions);
+        // A levels document swaps the SVG under the stage; the owner attributes
+        // live on whichever one is showing, so the observer follows it.
+        Archify.stage.onChange(function () {
+          svg = Archify.stage.svg();
+          ownerObserver.disconnect();
+          if (svg instanceof Node) ownerObserver.observe(svg, ownerObserverOptions);
+          publishOwner();
         });
       }
       syncVisibility();
@@ -7772,9 +7863,13 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       var html = document.documentElement;
       var container = document.querySelector('.diagram-container');
       var svg = Archify.stage.svg();
-      // A levels document swaps which SVG is on stage; this module reads
-      // its nodes live, so re-pointing the reference is enough.
-      Archify.stage.onChange(function () { svg = Archify.stage.svg(); });
+      // A levels document swaps which SVG is on stage. Re-pointing the reference
+      // covers everything this module reads live, but the relationship hit overlay
+      // is real DOM, so it has to be installed into whichever level is on stage.
+      Archify.stage.onChange(function () {
+        svg = Archify.stage.svg();
+        syncRelationshipHitTargets();
+      });
       var chip = document.getElementById('focus-chip');
       var label = document.getElementById('focus-label');
       var detail = document.getElementById('focus-detail');
@@ -7804,6 +7899,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       var activeRelationshipPreview = null;
       var relationshipHitOverlay = null;
       var relationshipHitTargets = [];
+      // Every level's SVG stays in the DOM, so the overlay is installed per level
+      // and keyed by SVG: a level is enhanced once, on first activation.
+      var relationshipHitBySvg = new WeakMap();
       var directPreviewTimer = null;
       var reachabilityMode = null;
       var activeReachability = null;
@@ -8592,9 +8690,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         return record ? inspectRelationship(record.key, options) : false;
       }
       function installRelationshipHitTargets() {
-        if (html.getAttribute('data-embed') === 'true') return 0;
+        if (!svg) return 0;
+        relationshipHitOverlay = null;
+        relationshipHitTargets = [];
+        if (html.getAttribute('data-embed') === 'true') { relationshipHitBySvg.set(svg, null); return 0; }
         var records = relationshipHitRecords();
-        if (!records.length) return 0;
+        if (!records.length) { relationshipHitBySvg.set(svg, null); return 0; }
         relationshipHitOverlay = document.createElementNS(svgNamespace, 'g');
         relationshipHitOverlay.setAttribute('class', 'relationship-hit-overlay');
         relationshipHitOverlay.setAttribute('data-relationship-hit-overlay', '');
@@ -8636,7 +8737,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             relationshipHitOverlay.appendChild(target);
           }
         });
-        if (!relationshipHitTargets.length) return 0;
+        if (!relationshipHitTargets.length) { relationshipHitOverlay = null; relationshipHitBySvg.set(svg, null); return 0; }
         var firstNode = svg.querySelector('[data-node-id]');
         var nodeLayer = firstNode;
         while (nodeLayer && nodeLayer.parentNode && nodeLayer.parentNode !== svg) nodeLayer = nodeLayer.parentNode;
@@ -8708,6 +8809,19 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           try { relationshipHitTargets[index].focus({ preventScroll: true }); }
           catch (_) { try { relationshipHitTargets[index].focus(); } catch (_) {} }
         });
+        relationshipHitBySvg.set(svg, { overlay: relationshipHitOverlay, targets: relationshipHitTargets });
+        return relationshipHitTargets.length;
+      }
+      function syncRelationshipHitTargets() {
+        if (!svg) {
+          relationshipHitOverlay = null;
+          relationshipHitTargets = [];
+          return 0;
+        }
+        if (!relationshipHitBySvg.has(svg)) return installRelationshipHitTargets();
+        var entry = relationshipHitBySvg.get(svg);
+        relationshipHitOverlay = entry ? entry.overlay : null;
+        relationshipHitTargets = entry ? entry.targets : [];
         return relationshipHitTargets.length;
       }
       function renderRelationshipLens(id, byId) {
@@ -9040,8 +9154,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         });
       }
 
-      svg.addEventListener('click', function (event) {
+      container.addEventListener('click', function (event) {
         if (container.getAttribute('data-just-panned') === 'true') return;
+        if (!Archify.stage.fromCanvas(event)) return;
         var node = event.target.closest('[data-node-id]');
         if (node) {
           var id = node.getAttribute('data-node-id');
@@ -9052,7 +9167,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
         else if (activeIds.length) clear();
       });
-      svg.addEventListener('keydown', function (event) {
+      container.addEventListener('keydown', function (event) {
+        if (!Archify.stage.fromCanvas(event)) return;
         var node = event.target.closest('[data-node-id]');
         if (!node || (event.key !== 'Enter' && event.key !== ' ')) return;
         event.preventDefault();
@@ -9388,26 +9504,30 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         show(candidate.getAttribute('data-node-id'), { announce: candidate === focusedNode });
       }
 
-      svg.addEventListener('pointerover', function (event) {
+      container.addEventListener('pointerover', function (event) {
+        if (!Archify.stage.fromCanvas(event)) return;
         var node = event.target.closest('[data-node-id]');
         if (!node || !finePointer() || event.pointerType === 'touch') return;
         if (event.relatedTarget && node.contains(event.relatedTarget)) return;
         hoveredNode = node;
         schedule(node);
       });
-      svg.addEventListener('pointerout', function (event) {
+      container.addEventListener('pointerout', function (event) {
+        if (!Archify.stage.fromCanvas(event)) return;
         var node = event.target.closest('[data-node-id]');
         if (!node || (event.relatedTarget && node.contains(event.relatedTarget))) return;
         if (hoveredNode === node) hoveredNode = null;
         sync();
       });
-      svg.addEventListener('focusin', function (event) {
+      container.addEventListener('focusin', function (event) {
+        if (!Archify.stage.fromCanvas(event)) return;
         var node = event.target.closest('[data-node-id]');
         if (!node) return;
         focusedNode = node;
         show(node.getAttribute('data-node-id'), { announce: true });
       });
-      svg.addEventListener('focusout', function (event) {
+      container.addEventListener('focusout', function (event) {
+        if (!Archify.stage.fromCanvas(event)) return;
         var node = event.target.closest('[data-node-id]');
         if (!node || (event.relatedTarget && node.contains(event.relatedTarget))) return;
         if (focusedNode === node) focusedNode = null;
@@ -9458,6 +9578,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       var shareCueRoute = document.getElementById('share-chapter-route');
       var shareCueProgress = document.getElementById('share-chapter-progress-bar');
       var svg = Archify.stage.svg();
+      var stageContainer = Archify.stage.container();
       var views = [];
       var activeIndex = -1;
       var playing = false;
@@ -11012,9 +11133,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           showAll({ clearFocus: false, updateUrl: false });
         }
       }
-      svg.addEventListener('click', releaseForNode, true);
-      svg.addEventListener('keydown', function (event) {
-        if (event.key === 'Enter' || event.key === ' ') releaseForNode(event);
+      stageContainer.addEventListener('click', function (event) {
+        if (Archify.stage.fromCanvas(event)) releaseForNode(event);
+      }, true);
+      stageContainer.addEventListener('keydown', function (event) {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        if (Archify.stage.fromCanvas(event)) releaseForNode(event);
       }, true);
 
       document.addEventListener('keydown', function (event) {
@@ -11272,6 +11396,49 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       // Which node opens which level is a fixed property of the document, not
       // of what is on screen, so every level is marked once. Marking only the
       // active level would leave stale attributes behind on switch.
+      var SVG_NS = 'http://www.w3.org/2000/svg';
+
+      // The badge is an overlay in the node's own corner: authored geometry is
+      // read, never rewritten, and the glyph carries the drill target so one
+      // click is enough. Double-click and Ctrl/Cmd+Enter keep working.
+      function drillBadge(node, childId, label) {
+        var existing = node.querySelector('[data-drill-badge]');
+        if (existing) existing.remove();
+        var rect = node.querySelector('rect');
+        if (!rect) return;
+        var x = parseFloat(rect.getAttribute('x'));
+        var y = parseFloat(rect.getAttribute('y'));
+        var width = parseFloat(rect.getAttribute('width'));
+        if (!isFinite(x) || !isFinite(y) || !isFinite(width)) return;
+
+        var badge = document.createElementNS(SVG_NS, 'g');
+        badge.setAttribute('class', 'level-drill-badge');
+        // The target rides on data-drill-badge, not data-drill-to: the latter
+        // means "a node that opens a level" and is queried as such.
+        badge.setAttribute('data-drill-badge', childId);
+        badge.setAttribute('role', 'button');
+        badge.setAttribute('tabindex', '0');
+        badge.setAttribute('aria-label', 'Open ' + label);
+        badge.setAttribute('transform', 'translate(' + (x + width - 15) + ' ' + (y + 15) + ')');
+        var title = document.createElementNS(SVG_NS, 'title');
+        title.textContent = 'Open ' + label;
+        badge.appendChild(title);
+        var disc = document.createElementNS(SVG_NS, 'circle');
+        disc.setAttribute('class', 'level-drill-badge-disc');
+        disc.setAttribute('r', '10');
+        badge.appendChild(disc);
+        var glyph = document.createElementNS(SVG_NS, 'g');
+        glyph.setAttribute('class', 'level-drill-badge-glyph');
+        var lens = document.createElementNS(SVG_NS, 'circle');
+        lens.setAttribute('cx', '-1'); lens.setAttribute('cy', '-1'); lens.setAttribute('r', '3.7');
+        glyph.appendChild(lens);
+        var marks = document.createElementNS(SVG_NS, 'path');
+        marks.setAttribute('d', 'M1.7 1.7 L4.5 4.5 M-2.9 -1 H0.9 M-1 -2.9 V0.9');
+        glyph.appendChild(marks);
+        badge.appendChild(glyph);
+        node.appendChild(badge);
+      }
+
       function markDrillable() {
         manifest.levels.forEach(function (level) {
           var svg = svgFor(level.id);
@@ -11279,11 +11446,66 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           var targets = drillTargets[level.id] || Object.create(null);
           Array.prototype.forEach.call(svg.querySelectorAll('[data-node-id]'), function (node) {
             var child = targets[node.getAttribute('data-node-id')];
-            // An attribute only: authored geometry is never rewritten.
-            if (child) node.setAttribute('data-drill-to', child);
-            else node.removeAttribute('data-drill-to');
+            // An attribute plus an overlay badge; authored geometry is untouched.
+            if (child) {
+              node.setAttribute('data-drill-to', child);
+              drillBadge(node, child, byId[child] ? byId[child].label : child);
+            } else {
+              node.removeAttribute('data-drill-to');
+              var stale = node.querySelector('[data-drill-badge]');
+              if (stale) stale.remove();
+            }
           });
         });
+      }
+
+      // A framed stage with its own zoom-out control: once you are inside a
+      // level, leaving it is the mirror of the badge that opened it.
+      var zoomOut = document.createElement('div');
+      zoomOut.className = 'level-zoom-out no-print';
+      zoomOut.hidden = true;
+      var zoomOutBtn = document.createElement('button');
+      zoomOutBtn.type = 'button';
+      zoomOutBtn.className = 'level-zoom-out-btn';
+      zoomOutBtn.setAttribute('data-level-up', '');
+      // Built through the DOM rather than an inline markup string: a literal
+      // svg tag in this source would be counted as a level by the artifact check.
+      var zoomOutIcon = document.createElementNS(SVG_NS, 'svg');
+      zoomOutIcon.setAttribute('viewBox', '-8 -8 16 16');
+      zoomOutIcon.setAttribute('aria-hidden', 'true');
+      zoomOutIcon.setAttribute('focusable', 'false');
+      var zoomOutLens = document.createElementNS(SVG_NS, 'circle');
+      zoomOutLens.setAttribute('cx', '-1');
+      zoomOutLens.setAttribute('cy', '-1');
+      zoomOutLens.setAttribute('r', '3.7');
+      zoomOutIcon.appendChild(zoomOutLens);
+      var zoomOutMarks = document.createElementNS(SVG_NS, 'path');
+      zoomOutMarks.setAttribute('d', 'M1.7 1.7 L4.5 4.5 M-2.9 -1 H0.9');
+      zoomOutIcon.appendChild(zoomOutMarks);
+      zoomOutBtn.appendChild(zoomOutIcon);
+      var zoomOutLabel = document.createElement('span');
+      zoomOutBtn.appendChild(zoomOutLabel);
+      zoomOut.appendChild(zoomOutBtn);
+      container.appendChild(zoomOut);
+      zoomOutBtn.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        up();
+      });
+
+      function renderZoomOut() {
+        var level = byId[activeId];
+        var parent = level && level.drillFrom ? byId[level.drillFrom.level] : null;
+        if (!parent) {
+          zoomOut.hidden = true;
+          container.removeAttribute('data-level-drilled');
+          return;
+        }
+        zoomOutLabel.textContent = parent.label;
+        zoomOutBtn.title = 'Back to ' + parent.label;
+        zoomOutBtn.setAttribute('aria-label', 'Back to ' + parent.label);
+        zoomOut.hidden = false;
+        container.setAttribute('data-level-drilled', 'true');
       }
 
       function renderRail() {
@@ -11339,6 +11561,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         });
         activeId = id;
         renderRail();
+        renderZoomOut();
 
         // Each level authors its own chapters, so install the ones belonging
         // to the level now on stage. A level without chapters hides the strip
@@ -11380,8 +11603,25 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         show(button.getAttribute('data-level-target'));
       });
 
-      // Drilling is a deliberate second gesture: a single click already means
-      // focus, so taking it would cost the reader an established interaction.
+      // The badge is an explicit control, so one click on it drills. Capture
+      // phase with propagation stopped keeps the same click from also being
+      // read as "focus this node" by the passport.
+      function drillFromBadge(event) {
+        var badge = event.target.closest && event.target.closest('[data-drill-badge]');
+        if (!badge) return false;
+        event.preventDefault();
+        event.stopPropagation();
+        show(badge.getAttribute('data-drill-badge'));
+        return true;
+      }
+      container.addEventListener('click', drillFromBadge, true);
+      container.addEventListener('keydown', function (event) {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        drillFromBadge(event);
+      }, true);
+
+      // Anywhere else on a drillable node, drilling stays a deliberate second
+      // gesture: a single click already means focus.
       container.addEventListener('dblclick', function (event) {
         var node = event.target.closest('[data-drill-to]');
         if (!node) return;
@@ -14443,6 +14683,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       }
       function interceptSelection(event) {
         if (mode !== 'source' && mode !== 'target') return;
+        if (!Archify.stage.fromCanvas(event)) return;
         if (container.getAttribute('data-just-panned') === 'true') return;
         var node = event.target.closest('[data-node-id]');
         if (!node) return;
@@ -14523,8 +14764,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           selectJourneyIndex(index);
         }
       });
-      svg.addEventListener('click', interceptSelection, true);
-      svg.addEventListener('keydown', interceptSelection, true);
+      container.addEventListener('click', interceptSelection, true);
+      container.addEventListener('keydown', interceptSelection, true);
       container.addEventListener('scroll', updateDocking, { passive: true });
       window.addEventListener('resize', requestDocking);
       window.addEventListener('beforeprint', function () {

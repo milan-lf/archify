@@ -918,6 +918,7 @@
       }
       function interceptSelection(event) {
         if (mode !== 'source' && mode !== 'target') return;
+        if (!Archify.stage.fromCanvas(event)) return;
         if (container.getAttribute('data-just-panned') === 'true') return;
         var node = event.target.closest('[data-node-id]');
         if (!node) return;
@@ -998,8 +999,8 @@
           selectJourneyIndex(index);
         }
       });
-      svg.addEventListener('click', interceptSelection, true);
-      svg.addEventListener('keydown', interceptSelection, true);
+      container.addEventListener('click', interceptSelection, true);
+      container.addEventListener('keydown', interceptSelection, true);
       container.addEventListener('scroll', updateDocking, { passive: true });
       window.addEventListener('resize', requestDocking);
       window.addEventListener('beforeprint', function () {

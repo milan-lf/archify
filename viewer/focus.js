@@ -7,9 +7,13 @@
       var html = document.documentElement;
       var container = document.querySelector('.diagram-container');
       var svg = Archify.stage.svg();
-      // A levels document swaps which SVG is on stage; this module reads
-      // its nodes live, so re-pointing the reference is enough.
-      Archify.stage.onChange(function () { svg = Archify.stage.svg(); });
+      // A levels document swaps which SVG is on stage. Re-pointing the reference
+      // covers everything this module reads live, but the relationship hit overlay
+      // is real DOM, so it has to be installed into whichever level is on stage.
+      Archify.stage.onChange(function () {
+        svg = Archify.stage.svg();
+        syncRelationshipHitTargets();
+      });
       var chip = document.getElementById('focus-chip');
       var label = document.getElementById('focus-label');
       var detail = document.getElementById('focus-detail');
@@ -39,6 +43,9 @@
       var activeRelationshipPreview = null;
       var relationshipHitOverlay = null;
       var relationshipHitTargets = [];
+      // Every level's SVG stays in the DOM, so the overlay is installed per level
+      // and keyed by SVG: a level is enhanced once, on first activation.
+      var relationshipHitBySvg = new WeakMap();
       var directPreviewTimer = null;
       var reachabilityMode = null;
       var activeReachability = null;
@@ -827,9 +834,12 @@
         return record ? inspectRelationship(record.key, options) : false;
       }
       function installRelationshipHitTargets() {
-        if (html.getAttribute('data-embed') === 'true') return 0;
+        if (!svg) return 0;
+        relationshipHitOverlay = null;
+        relationshipHitTargets = [];
+        if (html.getAttribute('data-embed') === 'true') { relationshipHitBySvg.set(svg, null); return 0; }
         var records = relationshipHitRecords();
-        if (!records.length) return 0;
+        if (!records.length) { relationshipHitBySvg.set(svg, null); return 0; }
         relationshipHitOverlay = document.createElementNS(svgNamespace, 'g');
         relationshipHitOverlay.setAttribute('class', 'relationship-hit-overlay');
         relationshipHitOverlay.setAttribute('data-relationship-hit-overlay', '');
@@ -871,7 +881,7 @@
             relationshipHitOverlay.appendChild(target);
           }
         });
-        if (!relationshipHitTargets.length) return 0;
+        if (!relationshipHitTargets.length) { relationshipHitOverlay = null; relationshipHitBySvg.set(svg, null); return 0; }
         var firstNode = svg.querySelector('[data-node-id]');
         var nodeLayer = firstNode;
         while (nodeLayer && nodeLayer.parentNode && nodeLayer.parentNode !== svg) nodeLayer = nodeLayer.parentNode;
@@ -943,6 +953,19 @@
           try { relationshipHitTargets[index].focus({ preventScroll: true }); }
           catch (_) { try { relationshipHitTargets[index].focus(); } catch (_) {} }
         });
+        relationshipHitBySvg.set(svg, { overlay: relationshipHitOverlay, targets: relationshipHitTargets });
+        return relationshipHitTargets.length;
+      }
+      function syncRelationshipHitTargets() {
+        if (!svg) {
+          relationshipHitOverlay = null;
+          relationshipHitTargets = [];
+          return 0;
+        }
+        if (!relationshipHitBySvg.has(svg)) return installRelationshipHitTargets();
+        var entry = relationshipHitBySvg.get(svg);
+        relationshipHitOverlay = entry ? entry.overlay : null;
+        relationshipHitTargets = entry ? entry.targets : [];
         return relationshipHitTargets.length;
       }
       function renderRelationshipLens(id, byId) {
@@ -1275,8 +1298,9 @@
         });
       }
 
-      svg.addEventListener('click', function (event) {
+      container.addEventListener('click', function (event) {
         if (container.getAttribute('data-just-panned') === 'true') return;
+        if (!Archify.stage.fromCanvas(event)) return;
         var node = event.target.closest('[data-node-id]');
         if (node) {
           var id = node.getAttribute('data-node-id');
@@ -1287,7 +1311,8 @@
         }
         else if (activeIds.length) clear();
       });
-      svg.addEventListener('keydown', function (event) {
+      container.addEventListener('keydown', function (event) {
+        if (!Archify.stage.fromCanvas(event)) return;
         var node = event.target.closest('[data-node-id]');
         if (!node || (event.key !== 'Enter' && event.key !== ' ')) return;
         event.preventDefault();

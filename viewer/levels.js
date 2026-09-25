@@ -83,6 +83,49 @@
       // Which node opens which level is a fixed property of the document, not
       // of what is on screen, so every level is marked once. Marking only the
       // active level would leave stale attributes behind on switch.
+      var SVG_NS = 'http://www.w3.org/2000/svg';
+
+      // The badge is an overlay in the node's own corner: authored geometry is
+      // read, never rewritten, and the glyph carries the drill target so one
+      // click is enough. Double-click and Ctrl/Cmd+Enter keep working.
+      function drillBadge(node, childId, label) {
+        var existing = node.querySelector('[data-drill-badge]');
+        if (existing) existing.remove();
+        var rect = node.querySelector('rect');
+        if (!rect) return;
+        var x = parseFloat(rect.getAttribute('x'));
+        var y = parseFloat(rect.getAttribute('y'));
+        var width = parseFloat(rect.getAttribute('width'));
+        if (!isFinite(x) || !isFinite(y) || !isFinite(width)) return;
+
+        var badge = document.createElementNS(SVG_NS, 'g');
+        badge.setAttribute('class', 'level-drill-badge');
+        // The target rides on data-drill-badge, not data-drill-to: the latter
+        // means "a node that opens a level" and is queried as such.
+        badge.setAttribute('data-drill-badge', childId);
+        badge.setAttribute('role', 'button');
+        badge.setAttribute('tabindex', '0');
+        badge.setAttribute('aria-label', 'Open ' + label);
+        badge.setAttribute('transform', 'translate(' + (x + width - 15) + ' ' + (y + 15) + ')');
+        var title = document.createElementNS(SVG_NS, 'title');
+        title.textContent = 'Open ' + label;
+        badge.appendChild(title);
+        var disc = document.createElementNS(SVG_NS, 'circle');
+        disc.setAttribute('class', 'level-drill-badge-disc');
+        disc.setAttribute('r', '10');
+        badge.appendChild(disc);
+        var glyph = document.createElementNS(SVG_NS, 'g');
+        glyph.setAttribute('class', 'level-drill-badge-glyph');
+        var lens = document.createElementNS(SVG_NS, 'circle');
+        lens.setAttribute('cx', '-1'); lens.setAttribute('cy', '-1'); lens.setAttribute('r', '3.7');
+        glyph.appendChild(lens);
+        var marks = document.createElementNS(SVG_NS, 'path');
+        marks.setAttribute('d', 'M1.7 1.7 L4.5 4.5 M-2.9 -1 H0.9 M-1 -2.9 V0.9');
+        glyph.appendChild(marks);
+        badge.appendChild(glyph);
+        node.appendChild(badge);
+      }
+
       function markDrillable() {
         manifest.levels.forEach(function (level) {
           var svg = svgFor(level.id);
@@ -90,11 +133,66 @@
           var targets = drillTargets[level.id] || Object.create(null);
           Array.prototype.forEach.call(svg.querySelectorAll('[data-node-id]'), function (node) {
             var child = targets[node.getAttribute('data-node-id')];
-            // An attribute only: authored geometry is never rewritten.
-            if (child) node.setAttribute('data-drill-to', child);
-            else node.removeAttribute('data-drill-to');
+            // An attribute plus an overlay badge; authored geometry is untouched.
+            if (child) {
+              node.setAttribute('data-drill-to', child);
+              drillBadge(node, child, byId[child] ? byId[child].label : child);
+            } else {
+              node.removeAttribute('data-drill-to');
+              var stale = node.querySelector('[data-drill-badge]');
+              if (stale) stale.remove();
+            }
           });
         });
+      }
+
+      // A framed stage with its own zoom-out control: once you are inside a
+      // level, leaving it is the mirror of the badge that opened it.
+      var zoomOut = document.createElement('div');
+      zoomOut.className = 'level-zoom-out no-print';
+      zoomOut.hidden = true;
+      var zoomOutBtn = document.createElement('button');
+      zoomOutBtn.type = 'button';
+      zoomOutBtn.className = 'level-zoom-out-btn';
+      zoomOutBtn.setAttribute('data-level-up', '');
+      // Built through the DOM rather than an inline markup string: a literal
+      // svg tag in this source would be counted as a level by the artifact check.
+      var zoomOutIcon = document.createElementNS(SVG_NS, 'svg');
+      zoomOutIcon.setAttribute('viewBox', '-8 -8 16 16');
+      zoomOutIcon.setAttribute('aria-hidden', 'true');
+      zoomOutIcon.setAttribute('focusable', 'false');
+      var zoomOutLens = document.createElementNS(SVG_NS, 'circle');
+      zoomOutLens.setAttribute('cx', '-1');
+      zoomOutLens.setAttribute('cy', '-1');
+      zoomOutLens.setAttribute('r', '3.7');
+      zoomOutIcon.appendChild(zoomOutLens);
+      var zoomOutMarks = document.createElementNS(SVG_NS, 'path');
+      zoomOutMarks.setAttribute('d', 'M1.7 1.7 L4.5 4.5 M-2.9 -1 H0.9');
+      zoomOutIcon.appendChild(zoomOutMarks);
+      zoomOutBtn.appendChild(zoomOutIcon);
+      var zoomOutLabel = document.createElement('span');
+      zoomOutBtn.appendChild(zoomOutLabel);
+      zoomOut.appendChild(zoomOutBtn);
+      container.appendChild(zoomOut);
+      zoomOutBtn.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        up();
+      });
+
+      function renderZoomOut() {
+        var level = byId[activeId];
+        var parent = level && level.drillFrom ? byId[level.drillFrom.level] : null;
+        if (!parent) {
+          zoomOut.hidden = true;
+          container.removeAttribute('data-level-drilled');
+          return;
+        }
+        zoomOutLabel.textContent = parent.label;
+        zoomOutBtn.title = 'Back to ' + parent.label;
+        zoomOutBtn.setAttribute('aria-label', 'Back to ' + parent.label);
+        zoomOut.hidden = false;
+        container.setAttribute('data-level-drilled', 'true');
       }
 
       function renderRail() {
@@ -150,6 +248,7 @@
         });
         activeId = id;
         renderRail();
+        renderZoomOut();
 
         // Each level authors its own chapters, so install the ones belonging
         // to the level now on stage. A level without chapters hides the strip
@@ -191,8 +290,25 @@
         show(button.getAttribute('data-level-target'));
       });
 
-      // Drilling is a deliberate second gesture: a single click already means
-      // focus, so taking it would cost the reader an established interaction.
+      // The badge is an explicit control, so one click on it drills. Capture
+      // phase with propagation stopped keeps the same click from also being
+      // read as "focus this node" by the passport.
+      function drillFromBadge(event) {
+        var badge = event.target.closest && event.target.closest('[data-drill-badge]');
+        if (!badge) return false;
+        event.preventDefault();
+        event.stopPropagation();
+        show(badge.getAttribute('data-drill-badge'));
+        return true;
+      }
+      container.addEventListener('click', drillFromBadge, true);
+      container.addEventListener('keydown', function (event) {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        drillFromBadge(event);
+      }, true);
+
+      // Anywhere else on a drillable node, drilling stays a deliberate second
+      // gesture: a single click already means focus.
       container.addEventListener('dblclick', function (event) {
         var node = event.target.closest('[data-drill-to]');
         if (!node) return;

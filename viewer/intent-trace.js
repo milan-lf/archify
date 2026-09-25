@@ -178,26 +178,30 @@
         show(candidate.getAttribute('data-node-id'), { announce: candidate === focusedNode });
       }
 
-      svg.addEventListener('pointerover', function (event) {
+      container.addEventListener('pointerover', function (event) {
+        if (!Archify.stage.fromCanvas(event)) return;
         var node = event.target.closest('[data-node-id]');
         if (!node || !finePointer() || event.pointerType === 'touch') return;
         if (event.relatedTarget && node.contains(event.relatedTarget)) return;
         hoveredNode = node;
         schedule(node);
       });
-      svg.addEventListener('pointerout', function (event) {
+      container.addEventListener('pointerout', function (event) {
+        if (!Archify.stage.fromCanvas(event)) return;
         var node = event.target.closest('[data-node-id]');
         if (!node || (event.relatedTarget && node.contains(event.relatedTarget))) return;
         if (hoveredNode === node) hoveredNode = null;
         sync();
       });
-      svg.addEventListener('focusin', function (event) {
+      container.addEventListener('focusin', function (event) {
+        if (!Archify.stage.fromCanvas(event)) return;
         var node = event.target.closest('[data-node-id]');
         if (!node) return;
         focusedNode = node;
         show(node.getAttribute('data-node-id'), { announce: true });
       });
-      svg.addEventListener('focusout', function (event) {
+      container.addEventListener('focusout', function (event) {
+        if (!Archify.stage.fromCanvas(event)) return;
         var node = event.target.closest('[data-node-id]');
         if (!node || (event.relatedTarget && node.contains(event.relatedTarget))) return;
         if (focusedNode === node) focusedNode = null;

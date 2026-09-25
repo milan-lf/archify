@@ -32,6 +32,9 @@
         clone.removeAttribute('data-level');
         clone.removeAttribute('data-level-label');
         clone.removeAttribute('data-level-active');
+        Array.prototype.forEach.call(clone.querySelectorAll('[data-drill-badge]'), function (el) {
+          el.remove();
+        });
         Array.prototype.forEach.call(clone.querySelectorAll('[data-drill-to]'), function (el) {
           el.removeAttribute('data-drill-to');
         });

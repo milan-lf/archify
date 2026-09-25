@@ -102,16 +102,22 @@ The viewer adds a breadcrumb rail above the diagram. It shows the path from
 the root to the level on screen, and an **Open** group listing the levels
 reachable from here.
 
-- **Drill in:** double-click a node that has a child level, or Ctrl/Cmd+Enter
-  with it focused. Single click stays focus, because that interaction is
-  already established; drilling asks for a deliberate second gesture.
-- **Go back:** click an ancestor crumb, or press Escape.
+- **Drill in:** click the magnifier badge in the node's top-right corner. It is
+  an explicit control, so one click is enough. Double-click anywhere else on the
+  node, or Ctrl/Cmd+Enter with it focused, still works — a plain click on the
+  body keeps meaning focus, because that interaction is already established.
+- **Go back:** click the zoom-out control in the stage's top-right, which names
+  the level it returns to. An ancestor crumb and Escape also work.
 - **Deep link:** `#level=<id>` opens directly on that level and binds every
   reader surface to it. The root level carries no fragment.
 
-A drillable node is marked with a `zoom-in` cursor and a restrained hover
-lift. Its authored geometry is never rewritten; the affordance is an attribute
-and a CSS rule, and export strips both.
+A drillable node carries a `zoom-in` cursor, a restrained hover lift, and a
+magnifier badge drawn into its top-right corner. The badge is an overlay: the
+node's authored rectangle is read for placement and never rewritten, the badge
+is focusable and activates on Enter or Space, and export removes it along with
+the drill attribute. While a child level is on stage the container takes an
+inset frame and the zoom-out control appears; both disappear at the root, and
+neither is present in embed or presentation mode.
 
 Switching levels is a change of canvas, so the viewer clears transient reader
 state that belonged to the level you left — focus, reachability, the lens, a

@@ -31,6 +31,7 @@
       var shareCueRoute = document.getElementById('share-chapter-route');
       var shareCueProgress = document.getElementById('share-chapter-progress-bar');
       var svg = Archify.stage.svg();
+      var stageContainer = Archify.stage.container();
       var views = [];
       var activeIndex = -1;
       var playing = false;
@@ -1585,9 +1586,12 @@
           showAll({ clearFocus: false, updateUrl: false });
         }
       }
-      svg.addEventListener('click', releaseForNode, true);
-      svg.addEventListener('keydown', function (event) {
-        if (event.key === 'Enter' || event.key === ' ') releaseForNode(event);
+      stageContainer.addEventListener('click', function (event) {
+        if (Archify.stage.fromCanvas(event)) releaseForNode(event);
+      }, true);
+      stageContainer.addEventListener('keydown', function (event) {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        if (Archify.stage.fromCanvas(event)) releaseForNode(event);
       }, true);
 
       document.addEventListener('keydown', function (event) {

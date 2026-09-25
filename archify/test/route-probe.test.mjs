@@ -91,8 +91,12 @@ test('Route Probe hands large-diagram endpoint selection to a reachability-aware
 
 test('Route Probe keeps pointer, keyboard, motion, embed, and export boundaries explicit', () => {
   const html = render('sequence', CASES.sequence);
-  assert.match(html, /svg\.addEventListener\('click', interceptSelection, true\)/);
-  assert.match(html, /svg\.addEventListener\('keydown', interceptSelection, true\)/);
+  // Delegated to the stage container so a levels document cannot strand the
+  // listener on the level that happened to be on stage at boot; the canvas
+  // guard keeps chrome inside that container from being read as selection.
+  assert.match(html, /container\.addEventListener\('click', interceptSelection, true\)/);
+  assert.match(html, /container\.addEventListener\('keydown', interceptSelection, true\)/);
+  assert.match(html, /if \(!Archify\.stage\.fromCanvas\(event\)\) return;/);
   assert.match(html, /event\.key !== 'Enter' && event\.key !== ' '/);
   assert.match(html, /e\.key === 'r' \|\| e\.key === 'R'/);
   assert.match(html, /e\.key === 'Escape' && Archify\.routeProbe\.active\(\)/);
