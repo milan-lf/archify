@@ -61,7 +61,7 @@
           element.removeAttribute('aria-hidden');
           element.setAttribute('data-level-active', 'true');
         } else {
-          element.setAttribute('hidden', '');
+          element.setAttribute('hidden', 'hidden');
           element.setAttribute('aria-hidden', 'true');
           element.removeAttribute('data-level-active');
         }

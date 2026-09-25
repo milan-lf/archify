@@ -83,7 +83,7 @@ test('the checker rejects a levels artifact with more than one active level', ()
   // viewer chrome earlier in the document.
   const tampered = path.join(dir, 'two-active.html');
   fs.writeFileSync(tampered, fs.readFileSync(outPath, 'utf8')
-    .replace('<svg data-level="containers" data-level-label="Containers" hidden aria-hidden="true"',
+    .replace('<svg data-level="containers" data-level-label="Containers" hidden="hidden" aria-hidden="true"',
       '<svg data-level="containers" data-level-label="Containers" data-level-active="true"'));
 
   const { status, receipt } = runChecker(tampered);

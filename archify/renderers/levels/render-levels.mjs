@@ -98,7 +98,10 @@ function composeSvg(levels, activeId) {
     const attrs = [
       `data-level="${esc(level.id)}"`,
       `data-level-label="${esc(level.label)}"`,
-      active ? 'data-level-active="true"' : 'hidden aria-hidden="true"',
+      // `hidden="hidden"` rather than a bare `hidden`: the attribute lands on
+      // an SVG root, and a valueless attribute is legal HTML but not
+      // well-formed XML, which SVG export and the artifact checks require.
+      active ? 'data-level-active="true"' : 'hidden="hidden" aria-hidden="true"',
     ].join(' ');
     const marker = '<svg ';
     const at = rendered.svg.indexOf(marker);

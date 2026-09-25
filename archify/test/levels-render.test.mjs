@@ -125,7 +125,7 @@ test('levels: every level SVG is byte-identical to its standalone render', () =>
     const standalone = svgRoots(JSON.parse(emitSvg(path.join(dir, source)).stdout).svg)[0];
     // The composed copy carries the level attributes; strip them before
     // comparing so the geometry itself is what is being asserted.
-    const stripped = composed[index].replace(/^<svg data-level="[^"]*" data-level-label="[^"]*" (?:data-level-active="true" |hidden aria-hidden="true" )/, '<svg ');
+    const stripped = composed[index].replace(/^<svg data-level="[^"]*" data-level-label="[^"]*" (?:data-level-active="true" |hidden="hidden" aria-hidden="true" )/, '<svg ');
     assert.equal(stripped, standalone, `level ${index} geometry must be unchanged`);
   }
 });
@@ -152,7 +152,7 @@ test('levels: only the root level is visible, and hidden levels have a display r
 
   const roots = svgRoots(html);
   assert.match(roots[0], /^<svg data-level="root" [^>]*data-level-active="true"/);
-  assert.match(roots[1], /^<svg data-level="child" [^>]*hidden aria-hidden="true"/);
+  assert.match(roots[1], /^<svg data-level="child" [^>]*hidden="hidden" aria-hidden="true"/);
 
   const cards = html.match(/<div class="cards"[^>]*>/g) || [];
   assert.equal(cards.length, 2);
