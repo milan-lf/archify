@@ -19,6 +19,7 @@ const fragments = [
   ['/* ARCHIFY:SEMANTIC_LENS */', 'semantic-lens.js'],
   ['/* ARCHIFY:ROUTE_PROBE */', 'route-probe.js'],
   ['/* ARCHIFY:GUIDED_VIEWS */', 'guided-views.js'],
+  ['/* ARCHIFY:LEVELS */', 'levels.js'],
   ['/* ARCHIFY:EXPORT_CLEANUP */', 'export-cleanup.js'],
 ];
 

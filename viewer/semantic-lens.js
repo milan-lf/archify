@@ -7,7 +7,10 @@
     Archify.semanticLens = (function () {
       var html = document.documentElement;
       var container = document.querySelector('.diagram-container');
-      var svg = container.querySelector(':scope > svg');
+      var svg = Archify.stage.svg();
+      // A levels document swaps which SVG is on stage; this module reads
+      // its nodes live, so re-pointing the reference is enough.
+      Archify.stage.onChange(function () { svg = Archify.stage.svg(); });
       var trigger = document.getElementById('btn-semantic-lens');
       var panel = document.getElementById('semantic-lens');
       var closeBtn = document.getElementById('semantic-lens-close');

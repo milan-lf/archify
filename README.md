@@ -239,6 +239,14 @@ Continue with focused requests such as `add Redis`, `move auth to the left`, or 
 | **Data Flow** | Pipelines, lineage, PII, consumers | Sources, transforms, stores, boundaries |
 | **Lifecycle** | States, retries, waits, terminal outcomes | States, events, retry and cancellation paths |
 
+When one diagram would need more than roughly 14 components to stay readable, a **levels document** binds several authored architecture levels into one artifact, so a node opens the diagram that explains it. That is the C4 case: context, containers, components, and code as separate drawings of one system.
+
+Levels add no automatic layout. Nothing reflows: each level keeps its own hand-placed coordinates, cards, and chapters, and is rendered and validated exactly as if it shipped alone, so a level inside a levels artifact is byte-identical to the same level rendered standalone. A node opens another authored drawing; it never grows into one.
+
+`node archify/bin/archify.mjs deliver levels model.levels.json model.html --quality showcase`
+
+See the [checked levels proof](https://tt-a1i.github.io/archify/gallery.html#proof-web-platform-levels) and the [authoring contract](archify/references/levels-documents.md).
+
 Architecture's optional `deployment-ownership` profile fails closed when authored owners, region placement, private database scope, or named crossings are missing; it is never implicit and does not inspect live infrastructure. See the [checked deployment proof](https://tt-a1i.github.io/archify/gallery.html#proof-deployment-ownership).
 
 For design or PR review, Architecture Delta compares validated Before / Delta / After snapshots with a machine receipt. Select an authored change or play one finite, viewer-only Review; it infers no impact, risk, or merge safety.

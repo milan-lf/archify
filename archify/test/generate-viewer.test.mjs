@@ -20,7 +20,8 @@ const lensMarker = '/* ARCHIFY:SEMANTIC_LENS */';
 const routeMarker = '/* ARCHIFY:ROUTE_PROBE */';
 const focusMarker = '/* ARCHIFY:FOCUS */';
 const guidedMarker = '/* ARCHIFY:GUIDED_VIEWS */';
-const fragments = { export: exportMarker, reader: marker, cleanup: cleanupMarker, chrome: chromeMarker, camera: cameraMarker, radar: radarMarker, motion: motionMarker, finder: finderMarker, intent: intentMarker, lens: lensMarker, route: routeMarker, guided: guidedMarker, focus: focusMarker };
+const levelsMarker = '/* ARCHIFY:LEVELS */';
+const fragments = { export: exportMarker, reader: marker, cleanup: cleanupMarker, chrome: chromeMarker, camera: cameraMarker, radar: radarMarker, motion: motionMarker, finder: finderMarker, intent: intentMarker, lens: lensMarker, route: routeMarker, guided: guidedMarker, levels: levelsMarker, focus: focusMarker };
 
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-viewer-build-'));
@@ -46,6 +47,7 @@ function fixture(t) {
     lens: path.join(root, 'viewer/semantic-lens.js'),
     route: path.join(root, 'viewer/route-probe.js'),
     guided: path.join(root, 'viewer/guided-views.js'),
+    levels: path.join(root, 'viewer/levels.js'),
     focus: path.join(root, 'viewer/focus.js'),
     run: (...args) => spawnSync(process.execPath, [path.join(root, 'scripts/generate-viewer.mjs'), ...args], {
       cwd: os.tmpdir(), encoding: 'utf8',
@@ -118,7 +120,7 @@ for (const [fragment, slot] of Object.entries(fragments)) {
 test('assembly preserves literal replacement tokens, Unicode and source line endings', (t) => {
   const f = fixture(t);
   const reader = '// $& $\' $` $$ 中文 \u{1f5fa}\r\n(function () {})();\r\n';
-  fs.writeFileSync(f.shell, `<script>\r\n${focusMarker}${guidedMarker}${routeMarker}${lensMarker}${intentMarker}${finderMarker}${motionMarker}${radarMarker}${cameraMarker}${chromeMarker}${exportMarker}${marker}</script>\n`);
+  fs.writeFileSync(f.shell, `<script>\r\n${focusMarker}${guidedMarker}${levelsMarker}${routeMarker}${lensMarker}${intentMarker}${finderMarker}${motionMarker}${radarMarker}${cameraMarker}${chromeMarker}${exportMarker}${marker}</script>\n`);
   fs.writeFileSync(f.export, reader + cleanupMarker);
   fs.writeFileSync(f.cleanup, reader);
   fs.writeFileSync(f.chrome, reader);
@@ -130,10 +132,11 @@ test('assembly preserves literal replacement tokens, Unicode and source line end
   fs.writeFileSync(f.lens, reader);
   fs.writeFileSync(f.route, reader);
   fs.writeFileSync(f.guided, reader);
+  fs.writeFileSync(f.levels, reader);
   fs.writeFileSync(f.focus, reader);
   fs.writeFileSync(f.reader, reader);
   assert.equal(f.run().status, 0);
-  assert.equal(fs.readFileSync(f.output, 'utf8'), `<script>\r\n${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}</script>\n`);
+  assert.equal(fs.readFileSync(f.output, 'utf8'), `<script>\r\n${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}</script>\n`);
   assert.equal(f.run('--check').status, 0);
 });
 

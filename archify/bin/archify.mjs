@@ -10,7 +10,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const skillRoot = path.resolve(__dirname, '..');
 
-const TYPES = new Set(['architecture', 'workflow', 'sequence', 'dataflow', 'lifecycle']);
+// The five typed diagrams, plus `levels`: a document that binds several
+// already-authored architecture diagrams into one drill-down artifact. It
+// takes the same `<input> <output>` renderer contract, so render, validate,
+// deliver, and preview reach it through the shared paths below.
+const TYPES = new Set(['architecture', 'workflow', 'sequence', 'dataflow', 'lifecycle', 'levels']);
 
 function usage() {
   return `Usage:
@@ -1001,6 +1005,39 @@ async function commandDeliver(args) {
       return;
     }
 
+    // A levels manifest resolves its sources relative to itself, so the
+    // frozen snapshot needs those level files beside it or delivery would
+    // render nothing. Validating the original first means only paths that
+    // already passed containment — including the symlink check — are staged,
+    // and the delivered artifact is built entirely from frozen bytes.
+    if (type === 'levels') {
+      const { loadLevelsDocument } = await import('../renderers/shared/levels-document.mjs');
+      let resolvedLevels;
+      try {
+        resolvedLevels = loadLevelsDocument(inputPath);
+      } catch (error) {
+        reportDeliveryFailure({
+          json,
+          stage: 'prepare',
+          type,
+          input: inputPath,
+          output: outputPath,
+          error: error.message,
+          diagnostics: Array.isArray(error?.archifyDiagnostics) ? error.archifyDiagnostics : [diagnostic({
+            code: 'delivery/levels-document',
+            message: error.message,
+            subject: { input: inputPath },
+          })],
+        });
+        return;
+      }
+      for (const level of resolvedLevels.levels) {
+        const staged = path.join(stagingDirectory, ...level.source.split('/'));
+        fs.mkdirSync(path.dirname(staged), { recursive: true });
+        fs.copyFileSync(level.sourcePath, staged);
+      }
+    }
+
     const render = runNode([renderer, specificationSnapshotPath, candidatePath], {
       stdio: 'pipe',
       env: rendererEnv(qualityArgs.quality, repoArgs.repoRoot, true),
@@ -1435,6 +1472,7 @@ async function commandDoctor(args) {
     sequence: 'cache-miss-request.sequence.json',
     dataflow: 'product-analytics.dataflow.json',
     lifecycle: 'agent-run.lifecycle.json',
+    levels: 'web-platform.levels.json',
   };
 
   for (const type of TYPES) {

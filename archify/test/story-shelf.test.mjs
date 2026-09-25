@@ -67,7 +67,10 @@ test('mobile shelf preserves 44px controls, horizontal chapters, and honest expa
 });
 
 test('active stories expand through existing state without storage or a second interaction owner', () => {
-  assert.match(template, /panel\.setAttribute\('data-active-view', 'all'\);\s*panel\.hidden = false/);
+  // The cold state must still be established immediately before the panel is
+  // exposed. Exposure is now conditional because a levels document installs a
+  // chapter set per level and a level may author none.
+  assert.match(template, /panel\.setAttribute\('data-active-view', 'all'\);\s*panel\.hidden = views\.length === 0;/);
   assert.match(template, /data-active-view', view \? view\.id : 'all'/);
   assert.match(template, /if \(activeIndex < 0\) activate\(0, \{ playback: true \}\)/);
   assert.match(template, /showAll\([\s\S]*activeIndex = -1;[\s\S]*render\(\)/);

@@ -64,6 +64,12 @@ Lifecycle note: phase columns `0..4` occupy the main rail; event/terminal column
 
 When ambiguous, run `node bin/archify.mjs guide "<scenario>" --json`. Scenario proof examples are structural references, not facts to copy.
 
+## Levels documents
+
+When one canvas would need more than roughly 14 nodes, or the user asks for C4 levels, author several architecture diagrams normally and bind them with a `levels` document so a node opens the diagram that explains it. Each level keeps its own coordinates, cards, and views, and is validated exactly as if it shipped alone; nothing reflows. Use `levels` as the CLI type: `node bin/archify.mjs deliver levels <doc>.levels.json <out>.html --quality showcase --json`.
+
+Read `references/levels-documents.md` before authoring the manifest.
+
 ## Mermaid input
 
 Read Mermaid for topology and meaning, then author fresh Archify JSON; do not mechanically render Mermaid styling.

@@ -237,6 +237,14 @@ DeepSeek Harness（社区集成、显式启用）：运行 `dsh plugin --profile
 | **Data Flow** | 数据管线、血缘、PII、下游消费者 | 来源、转换、存储、边界 |
 | **Lifecycle** | 状态、重试、等待、终态 | 状态、事件、重试与取消路径 |
 
+当一张图需要超过约 14 个组件才能讲清楚时，可以用 **levels 文档**把多张各自排布的架构图绑定为一个制品，点开某个节点就进入解释它的那张图。这正是 C4 的场景：上下文、容器、组件和代码，是同一个系统的不同深度。
+
+levels 不引入任何自动布局，层级之间也不会重排：每一层保留自己手工排布的坐标、卡片与章节，渲染和校验都与单独交付时完全一致，因此 levels 制品里的某一层与单独渲染该层的结果逐字节相同。节点只是打开另一张已经编排好的图，而不是就地展开。
+
+`node archify/bin/archify.mjs deliver levels model.levels.json model.html --quality showcase`
+
+可查看[通过校验的分层证明](https://tt-a1i.github.io/archify/gallery.html#proof-web-platform-levels)和[编写约定](archify/references/levels-documents.md)。
+
 做生产部署评审时，Architecture 可以按需启用 `deployment-ownership`
 工程画像：负责人、单一区域归属、数据库私有边界或边界穿越机制缺失时会直接阻断。
 它不会被静默开启，只校验作者写入的事实，不代表线上基础设施已经核验。可查看

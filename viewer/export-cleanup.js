@@ -27,6 +27,14 @@
         clone.removeAttribute('data-chapter-handoff');
         clone.removeAttribute('data-chapter-anchor');
         clone.removeAttribute('data-chapter-preview');
+        // Level identity and the drill affordance are viewer-only: an exported
+        // level is an ordinary standalone diagram, not part of a document.
+        clone.removeAttribute('data-level');
+        clone.removeAttribute('data-level-label');
+        clone.removeAttribute('data-level-active');
+        Array.prototype.forEach.call(clone.querySelectorAll('[data-drill-to]'), function (el) {
+          el.removeAttribute('data-drill-to');
+        });
         Array.prototype.forEach.call(clone.querySelectorAll('[data-chapter-handoff-overlay]'), function (el) {
           el.remove();
         });

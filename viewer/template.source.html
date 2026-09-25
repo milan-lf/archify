@@ -1031,6 +1031,76 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       transition: transform 0.18s ease;
     }
 
+    /* A levels document ships every level's SVG and cards in the one diagram
+       shell so the viewer chrome and its element ids are never duplicated.
+       Author display rules outrank the user-agent [hidden] rule, so every
+       element that is both laid out by an author rule and hidden by attribute
+       must restate display:none here. Missing one costs invisible page height
+       and, through the adaptive reader's height budget, a layout that never
+       settles -- including on ordinary single-diagram artifacts, where this
+       chrome is hidden for the whole life of the page. */
+    .diagram-container > svg[hidden],
+    .cards[hidden],
+    .level-rail[hidden],
+    .level-children[hidden] { display: none; }
+
+    /* Level rail. Hidden entirely unless a levels document populates it. */
+    .level-rail {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.75rem;
+    }
+    .level-crumbs {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      flex-wrap: wrap;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .level-crumbs li { display: flex; align-items: center; }
+    .level-crumbs li[data-level-depth]::before {
+      content: "›";
+      margin: 0 0.35rem;
+      color: var(--text-dim);
+    }
+    .level-crumb,
+    .level-child {
+      font: inherit;
+      font-size: 0.75rem;
+      letter-spacing: 0.01em;
+      color: var(--text-muted);
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      padding: 0.25rem 0.5rem;
+      cursor: pointer;
+      min-height: 28px;
+    }
+    .level-crumb:hover,
+    .level-child:hover { color: var(--text); border-color: var(--panel-border); }
+    .level-crumb[aria-current="true"] {
+      color: var(--text);
+      cursor: default;
+      border-color: var(--panel-border);
+      background: var(--panel);
+    }
+    .level-children { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+    .level-children::before {
+      content: "Open";
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+    /* A drillable node keeps its authored geometry; only the cursor and a
+       restrained hover outline mark that a second gesture opens a level. */
+    .diagram-container [data-drill-to] { cursor: zoom-in; }
+    .diagram-container [data-drill-to]:hover { filter: brightness(1.08); }
+
     .diagram-container.is-camera-moving svg {
       transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
     }
@@ -5088,6 +5158,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
     <!-- ARCHIFY:GUIDED_VIEWS_DATA -->
     <!-- ARCHIFY:SOURCE_EVIDENCE_DATA -->
+    <!-- ARCHIFY:LEVELS_DATA -->
     <!-- ARCHIFY:I18N_DATA -->
     <div class="guided-views no-print" id="guided-views" hidden aria-label="{{i18n:viewer.guided.region}}">
       <button id="guided-view-prev" type="button" aria-label="{{i18n:viewer.guided.previous}}" title="{{i18n:viewer.guided.previous.title}}">&#8592;</button>
@@ -5127,6 +5198,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <ol class="guided-view-chapters" id="guided-view-chapters"></ol>
       </nav>
     </div>
+
+    <!-- Level rail: present only in a levels document, populated at runtime. -->
+    <nav class="level-rail no-print" id="level-rail" hidden aria-label="Diagram levels">
+      <ol class="level-crumbs" id="level-crumbs"></ol>
+      <div class="level-children" id="level-children" hidden></div>
+    </nav>
 
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
@@ -5509,6 +5586,32 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
   <script>
     var Archify = {};
+
+    // The diagram stage. An ordinary artifact has exactly one SVG and this is
+    // a constant; a levels document ships one SVG per level with the inactive
+    // ones hidden, so every module must ask which one is on stage rather than
+    // cache the first child. Modules that keep a reference re-resolve it from
+    // onChange, which levels.js fires after it swaps the visible level.
+    Archify.stage = (function () {
+      var container = document.querySelector('.diagram-container');
+      var listeners = [];
+      function svg() {
+        return container ? container.querySelector(':scope > svg:not([hidden])') : null;
+      }
+      return {
+        container: function () { return container; },
+        svg: svg,
+        onChange: function (listener) {
+          if (typeof listener === 'function') listeners.push(listener);
+        },
+        notify: function (detail) {
+          for (var i = 0; i < listeners.length; i += 1) {
+            try { listeners[i](detail || {}); } catch (_) { /* one listener must not stop the rest */ }
+          }
+        }
+      };
+    })();
+
     var archifyI18nData = (function () {
       var node = document.getElementById('archify-i18n-data');
       try { return JSON.parse(node ? node.textContent : '{}'); }
@@ -5823,6 +5926,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 /* ARCHIFY:INTENT_TRACE */
 
 /* ARCHIFY:GUIDED_VIEWS */
+
+/* ARCHIFY:LEVELS */
 
     /* ============================================================
        Adaptive Reader Shell — one diagram across laptop and monitor.

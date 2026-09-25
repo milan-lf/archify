@@ -69,6 +69,34 @@ export function writeDiagram({ outPath, template, diagramType, meta, svg, cards,
   console.log(outPath);
 }
 
+// A levels document arrives with its SVG and cards already composed from
+// several independently rendered architecture levels, so it needs the same
+// guarded write path without writeDiagram's per-diagram card rendering.
+export function guardOutputPath(outputRequest) {
+  const { outputPath } = resolveOutputPath(outputRequest);
+  outputPathGuards.set(outputPath, outputRequest);
+  return outputPath;
+}
+
+export function writeLevelsDocument({ outPath, template, meta, svg, cards, levels, guidedViews = [], sourceEvidence = null }) {
+  const outputGuard = outputPathGuards.get(outPath);
+  if (outputGuard) resolveOutputPath(outputGuard);
+  fs.mkdirSync(path.dirname(outPath), { recursive: true });
+  fs.writeFileSync(outPath, applyTemplate(template, {
+    title: meta.title,
+    subtitle: meta.subtitle,
+    svg,
+    cards,
+    locale: meta.locale,
+    visualPreset: meta.visual_preset || 'classic',
+    guidedViews,
+    sourceEvidence,
+    levels,
+  }));
+  outputPathGuards.delete(outPath);
+  console.log(outPath);
+}
+
 const SEMANTIC_COLLECTIONS = {
   architecture: 'components',
   workflow: 'nodes',

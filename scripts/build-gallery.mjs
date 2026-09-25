@@ -26,6 +26,9 @@ const SHAPES = {
   sequence: ['participants', 'messages'],
   dataflow: ['nodes', 'flows'],
   lifecycle: ['states', 'transitions'],
+  // A levels document has levels rather than nodes, and no relationships of
+  // its own: every edge belongs to a level's own diagram.
+  levels: ['levels', null],
 };
 
 function digest(buffer) {
@@ -60,6 +63,12 @@ for (const item of CASES) {
   const validation = JSON.parse(checkOutput);
   const artifactBuffer = fs.readFileSync(artifactPath);
   const [nodeKey, edgeKey] = SHAPES[item.type];
+  // A levels document carries no chapters of its own: the reader story a
+  // visitor sees on open belongs to its root level, so read it from there.
+  const storySource = item.type === 'levels'
+    ? JSON.parse(fs.readFileSync(path.join(skillRoot, 'examples',
+        (source.levels.find((level) => !level.parent) || source.levels[0]).source), 'utf8'))
+    : source;
   const checksPassed = validation.checks.filter((check) => check.ok).length;
 
   entries.push({
@@ -70,8 +79,8 @@ for (const item of CASES) {
     visualPreset: source.meta.visual_preset || 'classic',
     animation: source.meta.animation || 'static',
     engineeringProfile: source.meta.engineering_profile || null,
-    viewCount: Array.isArray(source.meta.views) ? source.meta.views.length : 0,
-    viewIds: Array.isArray(source.meta.views) ? source.meta.views.map((view) => view.id) : [],
+    viewCount: Array.isArray(storySource.meta.views) ? storySource.meta.views.length : 0,
+    viewIds: Array.isArray(storySource.meta.views) ? storySource.meta.views.map((view) => view.id) : [],
     nodeCount: Array.isArray(source[nodeKey]) ? source[nodeKey].length : 0,
     edgeCount: Array.isArray(source[edgeKey]) ? source[edgeKey].length : 0,
     artifactBytes: artifactBuffer.byteLength,
