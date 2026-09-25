@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "generator": "scripts/build-gallery.mjs",
   "archifyVersion": "2.17.0-dev.1",
-  "entryCount": 11,
-  "checkCount": 99,
+  "entryCount": 12,
+  "checkCount": 117,
   "entries": [
     {
       "id": "agent-tool-call",
@@ -1102,6 +1102,160 @@
           "segmentPx": 16,
           "microSegmentPx": 8
         },
+        "issues": []
+      }
+    },
+    {
+      "id": "web-platform-levels",
+      "type": "levels",
+      "title": "Sample Web App — levels",
+      "subtitle": "",
+      "input": "gallery/sources/web-platform.levels.json",
+      "artifact": "gallery/artifacts/web-platform-levels.html",
+      "focus": "platform",
+      "view": "who-uses-it",
+      "viewCount": 3,
+      "viewIds": [
+        "who-uses-it",
+        "external-trust",
+        "drill-in"
+      ],
+      "guidedPlayback": true,
+      "schemaVersion": 1,
+      "visualPreset": "classic",
+      "animation": "static",
+      "engineeringProfile": null,
+      "nodeCount": 2,
+      "edgeCount": 0,
+      "artifactBytes": 848129,
+      "artifactSha256": "eab7500ae7b57598af73c2602d6408bb322046e5c68837c8ef1bf94f00448cb2",
+      "sourceBytes": 657,
+      "sourceSha256": "ae2d9c55f55867fac77a3c1ae77709383d869daf02a5ff2d71f876c93d677917",
+      "checks": [
+        {
+          "name": "levels_identified",
+          "ok": true
+        },
+        {
+          "name": "levels_single_active",
+          "ok": true
+        },
+        {
+          "name": "finite_svg_level_context",
+          "ok": true
+        },
+        {
+          "name": "orthogonal_arrows_level_context",
+          "ok": true
+        },
+        {
+          "name": "label_route_clearance_level_context",
+          "ok": true
+        },
+        {
+          "name": "relationship_crossings_level_context",
+          "ok": true
+        },
+        {
+          "name": "relationship_corridors_level_context",
+          "ok": true
+        },
+        {
+          "name": "container_border_runs_level_context",
+          "ok": true
+        },
+        {
+          "name": "route_rhythm_level_context",
+          "ok": true
+        },
+        {
+          "name": "legend_clearance_level_context",
+          "ok": true
+        },
+        {
+          "name": "finite_svg_level_containers",
+          "ok": true
+        },
+        {
+          "name": "orthogonal_arrows_level_containers",
+          "ok": true
+        },
+        {
+          "name": "label_route_clearance_level_containers",
+          "ok": true
+        },
+        {
+          "name": "relationship_crossings_level_containers",
+          "ok": true
+        },
+        {
+          "name": "relationship_corridors_level_containers",
+          "ok": true
+        },
+        {
+          "name": "container_border_runs_level_containers",
+          "ok": true
+        },
+        {
+          "name": "route_rhythm_level_containers",
+          "ok": true
+        },
+        {
+          "name": "legend_clearance_level_containers",
+          "ok": true
+        }
+      ],
+      "composition": {
+        "schemaVersion": 1,
+        "profile": "showcase",
+        "status": "pass",
+        "summary": {
+          "errors": 0,
+          "warnings": 0
+        },
+        "metrics": {
+          "properCrossings": 0,
+          "ambiguousCorridors": 0,
+          "containerBorderRuns": 0,
+          "labelRouteClearanceIssues": 0,
+          "minLabelRouteClearance": 18.8,
+          "desktopReadabilityIssues": 0,
+          "minProjectedNodeTextPx": null,
+          "maxBends": 3,
+          "routesOverSuggestedBends": 1,
+          "maxStretch": 1,
+          "routesOverSuggestedStretch": 0,
+          "minSegmentPx": 54,
+          "minInteriorSegmentPx": 86,
+          "shortSegmentCount": 0,
+          "shortEndpointSegmentCount": 0,
+          "shortInteriorSegmentCount": 0,
+          "microSegmentCount": 0
+        },
+        "suggestedLimits": {
+          "bendsPerRelationship": 2,
+          "stretch": 1.35,
+          "segmentPx": 16,
+          "microSegmentPx": 8
+        },
+        "levels": [
+          {
+            "level": "context",
+            "status": "pass",
+            "summary": {
+              "errors": 0,
+              "warnings": 0
+            }
+          },
+          {
+            "level": "containers",
+            "status": "pass",
+            "summary": {
+              "errors": 0,
+              "warnings": 0
+            }
+          }
+        ],
         "issues": []
       }
     }
