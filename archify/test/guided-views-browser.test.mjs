@@ -152,7 +152,7 @@ test('Guided Views preserves chapters, Story playback and handoff contracts', {
   ` });
 
   await t.test('five modes, empty payloads and filtered chapter interfaces initialize faithfully', async () => {
-    const members=['count','activate','showAll','play','playCurrent','pause','beatLink','copyBeatLink','cancelHandoff','settleHandoff','clearPreview','isPlaying','handoff','active','preview','delta','beat','focus'];
+    const members=['count','load','activate','showAll','play','playCurrent','pause','beatLink','copyBeatLink','cancelHandoff','settleHandoff','clearPreview','isPlaying','handoff','active','preview','delta','beat','focus'];
     for (const mode of Object.keys(cases)) {
       await load(mode); const s=await snapshot(mode+'-initial'); assert.equal(s.count,3); assert.equal(s.active,null); assert.equal(s.hidden,false);
       assert.deepEqual(await run('Object.keys(Archify.guidedViews)'),members);

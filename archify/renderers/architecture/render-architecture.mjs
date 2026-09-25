@@ -51,7 +51,12 @@ const componentTextFit = {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const layoutJsonMode = process.argv.includes('--layout-json');
-const cliArgs = process.argv.filter((arg) => arg !== '--layout-json');
+// `--emit-svg` returns this diagram's rendered SVG and cards on stdout instead
+// of writing an artifact, so a levels document can compose several already
+// fully-validated levels into one file without reimplementing any of the
+// layout, composition, or readability checks this renderer performs.
+const emitSvgMode = process.argv.includes('--emit-svg');
+const cliArgs = process.argv.filter((arg) => arg !== '--layout-json' && arg !== '--emit-svg');
 const { diagram: arch, template, outPath, sourceEvidence } = await loadDiagramWithBrandMarks({
   rendererDir: __dirname,
   diagramType: 'architecture',
@@ -1065,6 +1070,18 @@ ${renderLegend()}
 validateArchitecture();
 if (layoutJsonMode) {
   console.log(JSON.stringify(buildLayoutReport(), null, 2));
+  process.exit(0);
+}
+if (emitSvgMode) {
+  // Emitted only after validateArchitecture(), so a level can never reach a
+  // levels artifact without passing the same checks it would pass alone.
+  console.log(JSON.stringify({
+    diagramType: 'architecture',
+    meta: arch.meta,
+    svg: renderSvg(),
+    cards: arch.cards ?? null,
+    sourceEvidence,
+  }));
   process.exit(0);
 }
 writeDiagram({

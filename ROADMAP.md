@@ -209,6 +209,21 @@ Lifecycle diagrams became the fourth typed renderer pilot. They use `diagram_typ
 
 Like the other typed renderers, lifecycle is deliberately constrained rather than fully automatic. The renderer gives stable lane/column placement and validation checks, while Claude still decides which states are worth showing, which transitions should be labeled, and how to separate happy path, waits, and exception recovery.
 
+### Levels documents (C4 drill-down)
+
+Levels are a *document*, not a sixth diagram type. `diagram_type: "levels"` binds several already-authored architecture diagrams into one artifact so a node on one level can open the diagram that explains it — the C4 case, where context, containers, components, and code are separate drawings of the same system.
+
+**This does not reverse the anti-auto-layout decision above.** It is the reason the feature is shaped the way it is. Expand-in-place nesting — clicking a node and having it grow while its siblings reflow — needs a layout solver, which is exactly what this project has declined three times. Levels avoid that entirely: nothing ever reflows. Each level keeps its own hand-placed coordinates, its own cards, and its own guided views, and is rendered by the ordinary architecture renderer in its own process. A level's SVG inside a levels artifact is byte-identical to the same level rendered standalone, after the same layout, composition, and readability checks.
+
+The manifest owns no geometry. It names each level's source file and, for every level except the single root, the parent level and the component id it drills out of. Declaring that link on the **child** is what keeps the feature additive: a parent level file never learns it has children, so existing architecture diagrams can be bound into a levels document without being edited.
+
+Two consequences worth recording:
+
+- **Checks get stronger, not weaker.** `check-render-output` inspects every level rather than the first, so a four-level document runs the full artifact suite four times plus two document-level checks. Binding levels together must never buy a weaker guarantee than shipping them separately.
+- **One artifact is smaller than several.** The shared viewer template dominates each file, so four levels in one document cost roughly 890KB against 3.2MB as four standalone artifacts.
+
+What levels deliberately do **not** provide is expand-in-place nesting or any cross-level automatic layout. A node opens another authored drawing; it never grows into one.
+
 ---
 
 ## Not planned
