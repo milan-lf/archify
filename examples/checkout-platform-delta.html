@@ -12549,6 +12549,369 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     })();
     Archify.sourceEvidence.installBeacons();
 
+    Archify.levels = (function () {
+      var data = document.getElementById(&#39;archify-levels-data&#39;);
+      var inert = {
+        count: 0,
+        root: null,
+        active: function () { return null; },
+        path: function () { return []; },
+        labelOf: function () { return null; },
+        drillTargets: function () { return []; },
+        show: function () { return false; },
+        up: function () { return false; }
+      };
+      if (!data) return inert;
+
+      var manifest = null;
+      try { manifest = JSON.parse(data.textContent || &#39;null&#39;); } catch (_) { manifest = null; }
+      if (!manifest || !manifest.levels || !manifest.levels.length) return inert;
+
+      var container = Archify.stage.container();
+      var shell = document.querySelector(&#39;.container&#39;);
+      var rail = document.getElementById(&#39;level-rail&#39;);
+      var crumbs = document.getElementById(&#39;level-crumbs&#39;);
+      var children = document.getElementById(&#39;level-children&#39;);
+      if (!container || !rail || !crumbs || !children) return inert;
+
+      var byId = Object.create(null);
+      manifest.levels.forEach(function (level) { byId[level.id] = level; });
+      var root = manifest.root;
+      var activeId = null;
+
+      // The manifest declares each child&#39;s parent; the viewer needs the
+      // inverse to know which node on the visible level opens something.
+      var drillTargets = Object.create(null);
+      manifest.levels.forEach(function (level) {
+        if (!level.drillFrom) return;
+        var parent = level.drillFrom.level;
+        if (!drillTargets[parent]) drillTargets[parent] = Object.create(null);
+        drillTargets[parent][level.drillFrom.node] = level.id;
+      });
+
+      function svgFor(id) {
+        return container.querySelector(&#39;svg[data-level=&quot;&#39; + id + &#39;&quot;]&#39;);
+      }
+      function cardsFor(id) {
+        return shell ? shell.querySelector(&#39;.cards[data-level=&quot;&#39; + id + &#39;&quot;]&#39;) : null;
+      }
+      function pathTo(id) {
+        var chain = [];
+        var guard = 0;
+        var cursor = byId[id];
+        while (cursor &amp;&amp; guard &lt; manifest.levels.length + 1) {
+          chain.unshift(cursor.id);
+          cursor = cursor.drillFrom ? byId[cursor.drillFrom.level] : null;
+          guard += 1;
+        }
+        return chain;
+      }
+
+      function setVisible(element, visible) {
+        if (!element) return;
+        if (visible) {
+          element.removeAttribute(&#39;hidden&#39;);
+          element.removeAttribute(&#39;aria-hidden&#39;);
+          element.setAttribute(&#39;data-level-active&#39;, &#39;true&#39;);
+        } else {
+          element.setAttribute(&#39;hidden&#39;, &#39;hidden&#39;);
+          element.setAttribute(&#39;aria-hidden&#39;, &#39;true&#39;);
+          element.removeAttribute(&#39;data-level-active&#39;);
+        }
+      }
+
+      // Transient reader state belongs to the level it was raised on. Clearing
+      // it through each module&#39;s own public API avoids reaching into their
+      // internals and leaves every owner consistent.
+      function clearTransientState() {
+        try { if (Archify.focus) { Archify.focus.clearReach(); Archify.focus.clear(); } } catch (_) {}
+        try { if (Archify.semanticLens) Archify.semanticLens.clear(); } catch (_) {}
+        try { if (Archify.routeProbe) Archify.routeProbe.clear(); } catch (_) {}
+        try { if (Archify.finder) Archify.finder.close(); } catch (_) {}
+        try { if (Archify.radar) Archify.radar.close(); } catch (_) {}
+      }
+
+      // Which node opens which level is a fixed property of the document, not
+      // of what is on screen, so every level is marked once. Marking only the
+      // active level would leave stale attributes behind on switch.
+      var SVG_NS = &#39;http://www.w3.org/2000/svg&#39;;
+
+      // The badge is an overlay in the node&#39;s own corner: authored geometry is
+      // read, never rewritten, and the glyph carries the drill target so one
+      // click is enough. Double-click and Ctrl/Cmd+Enter keep working.
+      function drillBadge(node, childId, label) {
+        var existing = node.querySelector(&#39;[data-drill-badge]&#39;);
+        if (existing) existing.remove();
+        var rect = node.querySelector(&#39;rect&#39;);
+        if (!rect) return;
+        var x = parseFloat(rect.getAttribute(&#39;x&#39;));
+        var y = parseFloat(rect.getAttribute(&#39;y&#39;));
+        var width = parseFloat(rect.getAttribute(&#39;width&#39;));
+        if (!isFinite(x) || !isFinite(y) || !isFinite(width)) return;
+
+        var badge = document.createElementNS(SVG_NS, &#39;g&#39;);
+        badge.setAttribute(&#39;class&#39;, &#39;level-drill-badge&#39;);
+        // The target rides on data-drill-badge, not data-drill-to: the latter
+        // means &quot;a node that opens a level&quot; and is queried as such.
+        badge.setAttribute(&#39;data-drill-badge&#39;, childId);
+        badge.setAttribute(&#39;role&#39;, &#39;button&#39;);
+        badge.setAttribute(&#39;tabindex&#39;, &#39;0&#39;);
+        badge.setAttribute(&#39;aria-label&#39;, viewerText(&#39;viewer.levels.openNamed&#39;, { label: label }));
+        badge.setAttribute(&#39;transform&#39;, &#39;translate(&#39; + (x + width - 15) + &#39; &#39; + (y + 15) + &#39;)&#39;);
+        var title = document.createElementNS(SVG_NS, &#39;title&#39;);
+        title.textContent = viewerText(&#39;viewer.levels.openNamed&#39;, { label: label });
+        badge.appendChild(title);
+        var disc = document.createElementNS(SVG_NS, &#39;circle&#39;);
+        disc.setAttribute(&#39;class&#39;, &#39;level-drill-badge-disc&#39;);
+        disc.setAttribute(&#39;r&#39;, &#39;10&#39;);
+        badge.appendChild(disc);
+        var glyph = document.createElementNS(SVG_NS, &#39;g&#39;);
+        glyph.setAttribute(&#39;class&#39;, &#39;level-drill-badge-glyph&#39;);
+        var lens = document.createElementNS(SVG_NS, &#39;circle&#39;);
+        lens.setAttribute(&#39;cx&#39;, &#39;-1&#39;); lens.setAttribute(&#39;cy&#39;, &#39;-1&#39;); lens.setAttribute(&#39;r&#39;, &#39;3.7&#39;);
+        glyph.appendChild(lens);
+        var marks = document.createElementNS(SVG_NS, &#39;path&#39;);
+        marks.setAttribute(&#39;d&#39;, &#39;M1.7 1.7 L4.5 4.5 M-2.9 -1 H0.9 M-1 -2.9 V0.9&#39;);
+        glyph.appendChild(marks);
+        badge.appendChild(glyph);
+        node.appendChild(badge);
+      }
+
+      function markDrillable() {
+        manifest.levels.forEach(function (level) {
+          var svg = svgFor(level.id);
+          if (!svg) return;
+          var targets = drillTargets[level.id] || Object.create(null);
+          Array.prototype.forEach.call(svg.querySelectorAll(&#39;[data-node-id]&#39;), function (node) {
+            var child = targets[node.getAttribute(&#39;data-node-id&#39;)];
+            // An attribute plus an overlay badge; authored geometry is untouched.
+            if (child) {
+              node.setAttribute(&#39;data-drill-to&#39;, child);
+              drillBadge(node, child, byId[child] ? byId[child].label : child);
+            } else {
+              node.removeAttribute(&#39;data-drill-to&#39;);
+              var stale = node.querySelector(&#39;[data-drill-badge]&#39;);
+              if (stale) stale.remove();
+            }
+          });
+        });
+      }
+
+      // A framed stage with its own zoom-out control: once you are inside a
+      // level, leaving it is the mirror of the badge that opened it.
+      var zoomOut = document.createElement(&#39;div&#39;);
+      zoomOut.className = &#39;level-zoom-out no-print&#39;;
+      zoomOut.hidden = true;
+      var zoomOutBtn = document.createElement(&#39;button&#39;);
+      zoomOutBtn.type = &#39;button&#39;;
+      zoomOutBtn.className = &#39;level-zoom-out-btn&#39;;
+      zoomOutBtn.setAttribute(&#39;data-level-up&#39;, &#39;&#39;);
+      // Built through the DOM rather than an inline markup string: a literal
+      // svg tag in this source would be counted as a level by the artifact check.
+      var zoomOutIcon = document.createElementNS(SVG_NS, &#39;svg&#39;);
+      zoomOutIcon.setAttribute(&#39;viewBox&#39;, &#39;-8 -8 16 16&#39;);
+      zoomOutIcon.setAttribute(&#39;aria-hidden&#39;, &#39;true&#39;);
+      zoomOutIcon.setAttribute(&#39;focusable&#39;, &#39;false&#39;);
+      var zoomOutLens = document.createElementNS(SVG_NS, &#39;circle&#39;);
+      zoomOutLens.setAttribute(&#39;cx&#39;, &#39;-1&#39;);
+      zoomOutLens.setAttribute(&#39;cy&#39;, &#39;-1&#39;);
+      zoomOutLens.setAttribute(&#39;r&#39;, &#39;3.7&#39;);
+      zoomOutIcon.appendChild(zoomOutLens);
+      var zoomOutMarks = document.createElementNS(SVG_NS, &#39;path&#39;);
+      zoomOutMarks.setAttribute(&#39;d&#39;, &#39;M1.7 1.7 L4.5 4.5 M-2.9 -1 H0.9&#39;);
+      zoomOutIcon.appendChild(zoomOutMarks);
+      zoomOutBtn.appendChild(zoomOutIcon);
+      var zoomOutLabel = document.createElement(&#39;span&#39;);
+      zoomOutBtn.appendChild(zoomOutLabel);
+      zoomOut.appendChild(zoomOutBtn);
+      container.appendChild(zoomOut);
+      zoomOutBtn.addEventListener(&#39;click&#39;, function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        up();
+      });
+
+      function renderZoomOut() {
+        var level = byId[activeId];
+        var parent = level &amp;&amp; level.drillFrom ? byId[level.drillFrom.level] : null;
+        if (!parent) {
+          zoomOut.hidden = true;
+          container.removeAttribute(&#39;data-level-drilled&#39;);
+          return;
+        }
+        zoomOutLabel.textContent = parent.label;
+        zoomOutBtn.title = viewerText(&#39;viewer.levels.back&#39;, { label: parent.label });
+        zoomOutBtn.setAttribute(&#39;aria-label&#39;, viewerText(&#39;viewer.levels.back&#39;, { label: parent.label }));
+        zoomOut.hidden = false;
+        container.setAttribute(&#39;data-level-drilled&#39;, &#39;true&#39;);
+      }
+
+      function renderRail() {
+        var chain = pathTo(activeId);
+        crumbs.textContent = &#39;&#39;;
+        chain.forEach(function (id, index) {
+          var item = document.createElement(&#39;li&#39;);
+          var level = byId[id];
+          var current = id === activeId;
+          var button = document.createElement(&#39;button&#39;);
+          button.type = &#39;button&#39;;
+          button.className = &#39;level-crumb&#39;;
+          button.textContent = level.label;
+          button.setAttribute(&#39;data-level-target&#39;, id);
+          if (current) {
+            button.setAttribute(&#39;aria-current&#39;, &#39;true&#39;);
+            button.disabled = true;
+            if (level.note) button.title = level.note;
+          } else {
+            button.title = viewerText(&#39;viewer.levels.back&#39;, { label: level.label });
+          }
+          if (index &gt; 0) item.setAttribute(&#39;data-level-depth&#39;, String(index));
+          item.appendChild(button);
+          crumbs.appendChild(item);
+        });
+
+        children.textContent = &#39;&#39;;
+        var targets = drillTargets[activeId] || Object.create(null);
+        var targetNodes = Object.keys(targets);
+        if (targetNodes.length) {
+          var openLabel = document.createElement(&#39;span&#39;);
+          openLabel.className = &#39;level-children-label&#39;;
+          openLabel.textContent = viewerText(&#39;viewer.levels.open&#39;);
+          children.appendChild(openLabel);
+        }
+        targetNodes.forEach(function (nodeId) {
+          var childId = targets[nodeId];
+          var button = document.createElement(&#39;button&#39;);
+          button.type = &#39;button&#39;;
+          button.className = &#39;level-child&#39;;
+          button.setAttribute(&#39;data-level-target&#39;, childId);
+          button.textContent = byId[childId].label;
+          button.title = viewerText(&#39;viewer.levels.openFrom&#39;, {
+            label: byId[childId].label,
+            node: nodeId,
+          });
+          children.appendChild(button);
+        });
+        children.hidden = children.childNodes.length === 0;
+        rail.hidden = false;
+      }
+
+      function show(id, options) {
+        if (!byId[id] || id === activeId) return false;
+        var nextSvg = svgFor(id);
+        if (!nextSvg) return false;
+
+        clearTransientState();
+
+        manifest.levels.forEach(function (level) {
+          setVisible(svgFor(level.id), level.id === id);
+          setVisible(cardsFor(level.id), level.id === id);
+        });
+        activeId = id;
+        renderRail();
+        renderZoomOut();
+
+        document.documentElement.setAttribute(&#39;data-active-level&#39;, id);
+        Archify.stage.notify({ level: id, previous: options &amp;&amp; options.previous });
+
+        if (!options || options.updateHash !== false) {
+          viewerReplaceHash({ level: id === root ? null : id });
+        }
+        return true;
+      }
+
+      function up() {
+        var level = byId[activeId];
+        return level &amp;&amp; level.drillFrom ? show(level.drillFrom.level) : false;
+      }
+
+      rail.addEventListener(&#39;click&#39;, function (event) {
+        var button = event.target.closest(&#39;[data-level-target]&#39;);
+        if (!button) return;
+        event.preventDefault();
+        show(button.getAttribute(&#39;data-level-target&#39;));
+      });
+
+      // The badge is an explicit control, so one click on it drills. Capture
+      // phase with propagation stopped keeps the same click from also being
+      // read as &quot;focus this node&quot; by the passport.
+      function drillFromBadge(event) {
+        var badge = event.target.closest &amp;&amp; event.target.closest(&#39;[data-drill-badge]&#39;);
+        if (!badge) return false;
+        event.preventDefault();
+        event.stopPropagation();
+        show(badge.getAttribute(&#39;data-drill-badge&#39;));
+        return true;
+      }
+      container.addEventListener(&#39;click&#39;, drillFromBadge, true);
+      container.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.key !== &#39;Enter&#39; &amp;&amp; event.key !== &#39; &#39;) return;
+        drillFromBadge(event);
+      }, true);
+
+      // Anywhere else on a drillable node, drilling stays a deliberate second
+      // gesture: a single click already means focus.
+      container.addEventListener(&#39;dblclick&#39;, function (event) {
+        var node = event.target.closest(&#39;[data-drill-to]&#39;);
+        if (!node) return;
+        event.preventDefault();
+        show(node.getAttribute(&#39;data-drill-to&#39;));
+      });
+
+      container.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.key !== &#39;Enter&#39; || !(event.ctrlKey || event.metaKey)) return;
+        var node = event.target.closest &amp;&amp; event.target.closest(&#39;[data-drill-to]&#39;);
+        if (!node) return;
+        event.preventDefault();
+        show(node.getAttribute(&#39;data-drill-to&#39;));
+      });
+
+      // Absent means &quot;keep the level already on stage&quot;. An explicit level that
+      // is not in the manifest falls back to root; a hash written by focus or
+      // route, with no level param, must not.
+      function requestedLevel() {
+        var hash = window.location.hash || &#39;&#39;;
+        if (!/(?:^|[#&amp;])level=/.test(hash)) return { present: false, id: null };
+        var match = /(?:^|[#&amp;])level=([^&amp;]*)/.exec(hash);
+        var id = match ? decodeURIComponent(match[1]) : &#39;&#39;;
+        return { present: true, id: byId[id] ? id : null };
+      }
+
+      window.addEventListener(&#39;hashchange&#39;, function () {
+        var requested = requestedLevel();
+        if (!requested.present) return;
+        var next = requested.id || root;
+        if (next !== activeId) show(next, { updateHash: false });
+      });
+
+      markDrillable();
+
+      // Establish the starting level without rewriting a deep link that
+      // already names it.
+      var requested = requestedLevel();
+      var initial = requested.present ? (requested.id || root) : (manifest.active || root);
+      activeId = null;
+      show(initial, { updateHash: initial !== root &amp;&amp; !requested.present });
+      if (activeId !== initial) show(root, { updateHash: false });
+
+      return {
+        count: manifest.levels.length,
+        root: root,
+        active: function () { return activeId; },
+        path: function () { return pathTo(activeId); },
+        labelOf: function (id) { return byId[id] ? byId[id].label : null; },
+        drillTargets: function (id) {
+          var targets = drillTargets[id || activeId] || {};
+          return Object.keys(targets).map(function (nodeId) {
+            return { node: nodeId, level: targets[nodeId] };
+          });
+        },
+        show: show,
+        up: up
+      };
+    })();
+
+
     /* ============================================================
        Explore — stable-ID neighborhood focus + dependency-free pan/zoom.
        Renderer IDs become deep-linkable semantic hooks without turning the
@@ -18663,378 +19026,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       };
     })();
 
-    Archify.levels = (function () {
-      var data = document.getElementById(&#39;archify-levels-data&#39;);
-      var inert = {
-        count: 0,
-        root: null,
-        active: function () { return null; },
-        path: function () { return []; },
-        labelOf: function () { return null; },
-        drillTargets: function () { return []; },
-        show: function () { return false; },
-        up: function () { return false; }
-      };
-      if (!data) return inert;
-
-      var manifest = null;
-      try { manifest = JSON.parse(data.textContent || &#39;null&#39;); } catch (_) { manifest = null; }
-      if (!manifest || !manifest.levels || !manifest.levels.length) return inert;
-
-      var container = Archify.stage.container();
-      var shell = document.querySelector(&#39;.container&#39;);
-      var rail = document.getElementById(&#39;level-rail&#39;);
-      var crumbs = document.getElementById(&#39;level-crumbs&#39;);
-      var children = document.getElementById(&#39;level-children&#39;);
-      if (!container || !rail || !crumbs || !children) return inert;
-
-      var byId = Object.create(null);
-      manifest.levels.forEach(function (level) { byId[level.id] = level; });
-      var root = manifest.root;
-      var activeId = null;
-
-      // The manifest declares each child&#39;s parent; the viewer needs the
-      // inverse to know which node on the visible level opens something.
-      var drillTargets = Object.create(null);
-      manifest.levels.forEach(function (level) {
-        if (!level.drillFrom) return;
-        var parent = level.drillFrom.level;
-        if (!drillTargets[parent]) drillTargets[parent] = Object.create(null);
-        drillTargets[parent][level.drillFrom.node] = level.id;
-      });
-
-      function svgFor(id) {
-        return container.querySelector(&#39;svg[data-level=&quot;&#39; + id + &#39;&quot;]&#39;);
-      }
-      function cardsFor(id) {
-        return shell ? shell.querySelector(&#39;.cards[data-level=&quot;&#39; + id + &#39;&quot;]&#39;) : null;
-      }
-      function pathTo(id) {
-        var chain = [];
-        var guard = 0;
-        var cursor = byId[id];
-        while (cursor &amp;&amp; guard &lt; manifest.levels.length + 1) {
-          chain.unshift(cursor.id);
-          cursor = cursor.drillFrom ? byId[cursor.drillFrom.level] : null;
-          guard += 1;
-        }
-        return chain;
-      }
-
-      function setVisible(element, visible) {
-        if (!element) return;
-        if (visible) {
-          element.removeAttribute(&#39;hidden&#39;);
-          element.removeAttribute(&#39;aria-hidden&#39;);
-          element.setAttribute(&#39;data-level-active&#39;, &#39;true&#39;);
-        } else {
-          element.setAttribute(&#39;hidden&#39;, &#39;hidden&#39;);
-          element.setAttribute(&#39;aria-hidden&#39;, &#39;true&#39;);
-          element.removeAttribute(&#39;data-level-active&#39;);
-        }
-      }
-
-      // Transient reader state belongs to the level it was raised on. Clearing
-      // it through each module&#39;s own public API avoids reaching into their
-      // internals and leaves every owner consistent.
-      function clearTransientState() {
-        try { if (Archify.focus) { Archify.focus.clearReach(); Archify.focus.clear(); } } catch (_) {}
-        try { if (Archify.semanticLens) Archify.semanticLens.clear(); } catch (_) {}
-        try { if (Archify.routeProbe) Archify.routeProbe.clear(); } catch (_) {}
-        try { if (Archify.finder) Archify.finder.close(); } catch (_) {}
-        try { if (Archify.radar) Archify.radar.close(); } catch (_) {}
-      }
-
-      // Which node opens which level is a fixed property of the document, not
-      // of what is on screen, so every level is marked once. Marking only the
-      // active level would leave stale attributes behind on switch.
-      var SVG_NS = &#39;http://www.w3.org/2000/svg&#39;;
-
-      // The badge is an overlay in the node&#39;s own corner: authored geometry is
-      // read, never rewritten, and the glyph carries the drill target so one
-      // click is enough. Double-click and Ctrl/Cmd+Enter keep working.
-      function drillBadge(node, childId, label) {
-        var existing = node.querySelector(&#39;[data-drill-badge]&#39;);
-        if (existing) existing.remove();
-        var rect = node.querySelector(&#39;rect&#39;);
-        if (!rect) return;
-        var x = parseFloat(rect.getAttribute(&#39;x&#39;));
-        var y = parseFloat(rect.getAttribute(&#39;y&#39;));
-        var width = parseFloat(rect.getAttribute(&#39;width&#39;));
-        if (!isFinite(x) || !isFinite(y) || !isFinite(width)) return;
-
-        var badge = document.createElementNS(SVG_NS, &#39;g&#39;);
-        badge.setAttribute(&#39;class&#39;, &#39;level-drill-badge&#39;);
-        // The target rides on data-drill-badge, not data-drill-to: the latter
-        // means &quot;a node that opens a level&quot; and is queried as such.
-        badge.setAttribute(&#39;data-drill-badge&#39;, childId);
-        badge.setAttribute(&#39;role&#39;, &#39;button&#39;);
-        badge.setAttribute(&#39;tabindex&#39;, &#39;0&#39;);
-        badge.setAttribute(&#39;aria-label&#39;, viewerText(&#39;viewer.levels.openNamed&#39;, { label: label }));
-        badge.setAttribute(&#39;transform&#39;, &#39;translate(&#39; + (x + width - 15) + &#39; &#39; + (y + 15) + &#39;)&#39;);
-        var title = document.createElementNS(SVG_NS, &#39;title&#39;);
-        title.textContent = viewerText(&#39;viewer.levels.openNamed&#39;, { label: label });
-        badge.appendChild(title);
-        var disc = document.createElementNS(SVG_NS, &#39;circle&#39;);
-        disc.setAttribute(&#39;class&#39;, &#39;level-drill-badge-disc&#39;);
-        disc.setAttribute(&#39;r&#39;, &#39;10&#39;);
-        badge.appendChild(disc);
-        var glyph = document.createElementNS(SVG_NS, &#39;g&#39;);
-        glyph.setAttribute(&#39;class&#39;, &#39;level-drill-badge-glyph&#39;);
-        var lens = document.createElementNS(SVG_NS, &#39;circle&#39;);
-        lens.setAttribute(&#39;cx&#39;, &#39;-1&#39;); lens.setAttribute(&#39;cy&#39;, &#39;-1&#39;); lens.setAttribute(&#39;r&#39;, &#39;3.7&#39;);
-        glyph.appendChild(lens);
-        var marks = document.createElementNS(SVG_NS, &#39;path&#39;);
-        marks.setAttribute(&#39;d&#39;, &#39;M1.7 1.7 L4.5 4.5 M-2.9 -1 H0.9 M-1 -2.9 V0.9&#39;);
-        glyph.appendChild(marks);
-        badge.appendChild(glyph);
-        node.appendChild(badge);
-      }
-
-      function markDrillable() {
-        manifest.levels.forEach(function (level) {
-          var svg = svgFor(level.id);
-          if (!svg) return;
-          var targets = drillTargets[level.id] || Object.create(null);
-          Array.prototype.forEach.call(svg.querySelectorAll(&#39;[data-node-id]&#39;), function (node) {
-            var child = targets[node.getAttribute(&#39;data-node-id&#39;)];
-            // An attribute plus an overlay badge; authored geometry is untouched.
-            if (child) {
-              node.setAttribute(&#39;data-drill-to&#39;, child);
-              drillBadge(node, child, byId[child] ? byId[child].label : child);
-            } else {
-              node.removeAttribute(&#39;data-drill-to&#39;);
-              var stale = node.querySelector(&#39;[data-drill-badge]&#39;);
-              if (stale) stale.remove();
-            }
-          });
-        });
-      }
-
-      // A framed stage with its own zoom-out control: once you are inside a
-      // level, leaving it is the mirror of the badge that opened it.
-      var zoomOut = document.createElement(&#39;div&#39;);
-      zoomOut.className = &#39;level-zoom-out no-print&#39;;
-      zoomOut.hidden = true;
-      var zoomOutBtn = document.createElement(&#39;button&#39;);
-      zoomOutBtn.type = &#39;button&#39;;
-      zoomOutBtn.className = &#39;level-zoom-out-btn&#39;;
-      zoomOutBtn.setAttribute(&#39;data-level-up&#39;, &#39;&#39;);
-      // Built through the DOM rather than an inline markup string: a literal
-      // svg tag in this source would be counted as a level by the artifact check.
-      var zoomOutIcon = document.createElementNS(SVG_NS, &#39;svg&#39;);
-      zoomOutIcon.setAttribute(&#39;viewBox&#39;, &#39;-8 -8 16 16&#39;);
-      zoomOutIcon.setAttribute(&#39;aria-hidden&#39;, &#39;true&#39;);
-      zoomOutIcon.setAttribute(&#39;focusable&#39;, &#39;false&#39;);
-      var zoomOutLens = document.createElementNS(SVG_NS, &#39;circle&#39;);
-      zoomOutLens.setAttribute(&#39;cx&#39;, &#39;-1&#39;);
-      zoomOutLens.setAttribute(&#39;cy&#39;, &#39;-1&#39;);
-      zoomOutLens.setAttribute(&#39;r&#39;, &#39;3.7&#39;);
-      zoomOutIcon.appendChild(zoomOutLens);
-      var zoomOutMarks = document.createElementNS(SVG_NS, &#39;path&#39;);
-      zoomOutMarks.setAttribute(&#39;d&#39;, &#39;M1.7 1.7 L4.5 4.5 M-2.9 -1 H0.9&#39;);
-      zoomOutIcon.appendChild(zoomOutMarks);
-      zoomOutBtn.appendChild(zoomOutIcon);
-      var zoomOutLabel = document.createElement(&#39;span&#39;);
-      zoomOutBtn.appendChild(zoomOutLabel);
-      zoomOut.appendChild(zoomOutBtn);
-      container.appendChild(zoomOut);
-      zoomOutBtn.addEventListener(&#39;click&#39;, function (event) {
-        event.preventDefault();
-        event.stopPropagation();
-        up();
-      });
-
-      function renderZoomOut() {
-        var level = byId[activeId];
-        var parent = level &amp;&amp; level.drillFrom ? byId[level.drillFrom.level] : null;
-        if (!parent) {
-          zoomOut.hidden = true;
-          container.removeAttribute(&#39;data-level-drilled&#39;);
-          return;
-        }
-        zoomOutLabel.textContent = parent.label;
-        zoomOutBtn.title = viewerText(&#39;viewer.levels.back&#39;, { label: parent.label });
-        zoomOutBtn.setAttribute(&#39;aria-label&#39;, viewerText(&#39;viewer.levels.back&#39;, { label: parent.label }));
-        zoomOut.hidden = false;
-        container.setAttribute(&#39;data-level-drilled&#39;, &#39;true&#39;);
-      }
-
-      function renderRail() {
-        var chain = pathTo(activeId);
-        crumbs.textContent = &#39;&#39;;
-        chain.forEach(function (id, index) {
-          var item = document.createElement(&#39;li&#39;);
-          var level = byId[id];
-          var current = id === activeId;
-          var button = document.createElement(&#39;button&#39;);
-          button.type = &#39;button&#39;;
-          button.className = &#39;level-crumb&#39;;
-          button.textContent = level.label;
-          button.setAttribute(&#39;data-level-target&#39;, id);
-          if (current) {
-            button.setAttribute(&#39;aria-current&#39;, &#39;true&#39;);
-            button.disabled = true;
-            if (level.note) button.title = level.note;
-          } else {
-            button.title = viewerText(&#39;viewer.levels.back&#39;, { label: level.label });
-          }
-          if (index &gt; 0) item.setAttribute(&#39;data-level-depth&#39;, String(index));
-          item.appendChild(button);
-          crumbs.appendChild(item);
-        });
-
-        children.textContent = &#39;&#39;;
-        var targets = drillTargets[activeId] || Object.create(null);
-        var targetNodes = Object.keys(targets);
-        if (targetNodes.length) {
-          var openLabel = document.createElement(&#39;span&#39;);
-          openLabel.className = &#39;level-children-label&#39;;
-          openLabel.textContent = viewerText(&#39;viewer.levels.open&#39;);
-          children.appendChild(openLabel);
-        }
-        targetNodes.forEach(function (nodeId) {
-          var childId = targets[nodeId];
-          var button = document.createElement(&#39;button&#39;);
-          button.type = &#39;button&#39;;
-          button.className = &#39;level-child&#39;;
-          button.setAttribute(&#39;data-level-target&#39;, childId);
-          button.textContent = byId[childId].label;
-          button.title = viewerText(&#39;viewer.levels.openFrom&#39;, {
-            label: byId[childId].label,
-            node: nodeId,
-          });
-          children.appendChild(button);
-        });
-        children.hidden = children.childNodes.length === 0;
-        rail.hidden = false;
-      }
-
-      function show(id, options) {
-        if (!byId[id] || id === activeId) return false;
-        var nextSvg = svgFor(id);
-        if (!nextSvg) return false;
-
-        clearTransientState();
-
-        manifest.levels.forEach(function (level) {
-          setVisible(svgFor(level.id), level.id === id);
-          setVisible(cardsFor(level.id), level.id === id);
-        });
-        activeId = id;
-        renderRail();
-        renderZoomOut();
-
-        document.documentElement.setAttribute(&#39;data-active-level&#39;, id);
-        Archify.stage.notify({ level: id, previous: options &amp;&amp; options.previous });
-
-        if (!options || options.updateHash !== false) {
-          viewerReplaceHash({ level: id === root ? null : id });
-        }
-        return true;
-      }
-
-      function up() {
-        var level = byId[activeId];
-        return level &amp;&amp; level.drillFrom ? show(level.drillFrom.level) : false;
-      }
-
-      rail.addEventListener(&#39;click&#39;, function (event) {
-        var button = event.target.closest(&#39;[data-level-target]&#39;);
-        if (!button) return;
-        event.preventDefault();
-        show(button.getAttribute(&#39;data-level-target&#39;));
-      });
-
-      // The badge is an explicit control, so one click on it drills. Capture
-      // phase with propagation stopped keeps the same click from also being
-      // read as &quot;focus this node&quot; by the passport.
-      function drillFromBadge(event) {
-        var badge = event.target.closest &amp;&amp; event.target.closest(&#39;[data-drill-badge]&#39;);
-        if (!badge) return false;
-        event.preventDefault();
-        event.stopPropagation();
-        show(badge.getAttribute(&#39;data-drill-badge&#39;));
-        return true;
-      }
-      container.addEventListener(&#39;click&#39;, drillFromBadge, true);
-      container.addEventListener(&#39;keydown&#39;, function (event) {
-        if (event.key !== &#39;Enter&#39; &amp;&amp; event.key !== &#39; &#39;) return;
-        drillFromBadge(event);
-      }, true);
-
-      // Anywhere else on a drillable node, drilling stays a deliberate second
-      // gesture: a single click already means focus.
-      container.addEventListener(&#39;dblclick&#39;, function (event) {
-        var node = event.target.closest(&#39;[data-drill-to]&#39;);
-        if (!node) return;
-        event.preventDefault();
-        show(node.getAttribute(&#39;data-drill-to&#39;));
-      });
-
-      container.addEventListener(&#39;keydown&#39;, function (event) {
-        if (event.key !== &#39;Enter&#39; || !(event.ctrlKey || event.metaKey)) return;
-        var node = event.target.closest &amp;&amp; event.target.closest(&#39;[data-drill-to]&#39;);
-        if (!node) return;
-        event.preventDefault();
-        show(node.getAttribute(&#39;data-drill-to&#39;));
-      });
-
-      document.addEventListener(&#39;keydown&#39;, function (event) {
-        if (event.key !== &#39;Escape&#39; || event.defaultPrevented) return;
-        if (activeId === root) return;
-        // Yield to any owner that treats Escape as dismissal of its own layer.
-        var stageSvg = svgFor(activeId);
-        if (stageSvg &amp;&amp; stageSvg.hasAttribute(&#39;data-focus-active&#39;)) return;
-        if (up()) event.preventDefault();
-      });
-
-      // Absent means &quot;keep the level already on stage&quot;. An explicit level that
-      // is not in the manifest falls back to root; a hash written by focus or
-      // route, with no level param, must not.
-      function requestedLevel() {
-        var hash = window.location.hash || &#39;&#39;;
-        if (!/(?:^|[#&amp;])level=/.test(hash)) return { present: false, id: null };
-        var match = /(?:^|[#&amp;])level=([^&amp;]*)/.exec(hash);
-        var id = match ? decodeURIComponent(match[1]) : &#39;&#39;;
-        return { present: true, id: byId[id] ? id : null };
-      }
-
-      window.addEventListener(&#39;hashchange&#39;, function () {
-        var requested = requestedLevel();
-        if (!requested.present) return;
-        var next = requested.id || root;
-        if (next !== activeId) show(next, { updateHash: false });
-      });
-
-      markDrillable();
-
-      // Establish the starting level without rewriting a deep link that
-      // already names it.
-      var requested = requestedLevel();
-      var initial = requested.present ? (requested.id || root) : (manifest.active || root);
-      activeId = null;
-      show(initial, { updateHash: initial !== root &amp;&amp; !requested.present });
-      if (activeId !== initial) show(root, { updateHash: false });
-
-      return {
-        count: manifest.levels.length,
-        root: root,
-        active: function () { return activeId; },
-        path: function () { return pathTo(activeId); },
-        labelOf: function (id) { return byId[id] ? byId[id].label : null; },
-        drillTargets: function (id) {
-          var targets = drillTargets[id || activeId] || {};
-          return Object.keys(targets).map(function (nodeId) {
-            return { node: nodeId, level: targets[nodeId] };
-          });
-        },
-        show: show,
-        up: up
-      };
-    })();
-
-
     /* ============================================================
        Diagram Guide — a factual command deck over existing interactions.
        Counts come from compiled semantics; actions delegate to Finder, Route
@@ -19217,7 +19208,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
          R -&gt; start/clear Route Probe
          / -&gt; open node finder or the active route endpoint picker
          + / - -&gt; zoom, 0 -&gt; reset view
-         Escape -&gt; clear temporary trace/focus/view first, then exit presentation
+         Escape -&gt; clear temporary trace/focus/view first, then climb one level, then exit presentation
        Ignored when focus is inside an input/textarea/contenteditable.
        ============================================================ */
     document.addEventListener(&#39;keydown&#39;, function (e) {
@@ -19288,6 +19279,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       } else if (e.key === &#39;Escape&#39; &amp;&amp; Archify.focus.active()) {
         e.preventDefault();
         Archify.focus.clear({ restoreFocus: true });
+      } else if (e.key === &#39;Escape&#39; &amp;&amp; Archify.levels.up()) {
+        e.preventDefault();
       } else if (e.key === &#39;Escape&#39; &amp;&amp; Archify.presentation.active()) {
         e.preventDefault();
         Archify.presentation.exit();
@@ -27312,6 +27305,369 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     })();
     Archify.sourceEvidence.installBeacons();
 
+    Archify.levels = (function () {
+      var data = document.getElementById(&#39;archify-levels-data&#39;);
+      var inert = {
+        count: 0,
+        root: null,
+        active: function () { return null; },
+        path: function () { return []; },
+        labelOf: function () { return null; },
+        drillTargets: function () { return []; },
+        show: function () { return false; },
+        up: function () { return false; }
+      };
+      if (!data) return inert;
+
+      var manifest = null;
+      try { manifest = JSON.parse(data.textContent || &#39;null&#39;); } catch (_) { manifest = null; }
+      if (!manifest || !manifest.levels || !manifest.levels.length) return inert;
+
+      var container = Archify.stage.container();
+      var shell = document.querySelector(&#39;.container&#39;);
+      var rail = document.getElementById(&#39;level-rail&#39;);
+      var crumbs = document.getElementById(&#39;level-crumbs&#39;);
+      var children = document.getElementById(&#39;level-children&#39;);
+      if (!container || !rail || !crumbs || !children) return inert;
+
+      var byId = Object.create(null);
+      manifest.levels.forEach(function (level) { byId[level.id] = level; });
+      var root = manifest.root;
+      var activeId = null;
+
+      // The manifest declares each child&#39;s parent; the viewer needs the
+      // inverse to know which node on the visible level opens something.
+      var drillTargets = Object.create(null);
+      manifest.levels.forEach(function (level) {
+        if (!level.drillFrom) return;
+        var parent = level.drillFrom.level;
+        if (!drillTargets[parent]) drillTargets[parent] = Object.create(null);
+        drillTargets[parent][level.drillFrom.node] = level.id;
+      });
+
+      function svgFor(id) {
+        return container.querySelector(&#39;svg[data-level=&quot;&#39; + id + &#39;&quot;]&#39;);
+      }
+      function cardsFor(id) {
+        return shell ? shell.querySelector(&#39;.cards[data-level=&quot;&#39; + id + &#39;&quot;]&#39;) : null;
+      }
+      function pathTo(id) {
+        var chain = [];
+        var guard = 0;
+        var cursor = byId[id];
+        while (cursor &amp;&amp; guard &lt; manifest.levels.length + 1) {
+          chain.unshift(cursor.id);
+          cursor = cursor.drillFrom ? byId[cursor.drillFrom.level] : null;
+          guard += 1;
+        }
+        return chain;
+      }
+
+      function setVisible(element, visible) {
+        if (!element) return;
+        if (visible) {
+          element.removeAttribute(&#39;hidden&#39;);
+          element.removeAttribute(&#39;aria-hidden&#39;);
+          element.setAttribute(&#39;data-level-active&#39;, &#39;true&#39;);
+        } else {
+          element.setAttribute(&#39;hidden&#39;, &#39;hidden&#39;);
+          element.setAttribute(&#39;aria-hidden&#39;, &#39;true&#39;);
+          element.removeAttribute(&#39;data-level-active&#39;);
+        }
+      }
+
+      // Transient reader state belongs to the level it was raised on. Clearing
+      // it through each module&#39;s own public API avoids reaching into their
+      // internals and leaves every owner consistent.
+      function clearTransientState() {
+        try { if (Archify.focus) { Archify.focus.clearReach(); Archify.focus.clear(); } } catch (_) {}
+        try { if (Archify.semanticLens) Archify.semanticLens.clear(); } catch (_) {}
+        try { if (Archify.routeProbe) Archify.routeProbe.clear(); } catch (_) {}
+        try { if (Archify.finder) Archify.finder.close(); } catch (_) {}
+        try { if (Archify.radar) Archify.radar.close(); } catch (_) {}
+      }
+
+      // Which node opens which level is a fixed property of the document, not
+      // of what is on screen, so every level is marked once. Marking only the
+      // active level would leave stale attributes behind on switch.
+      var SVG_NS = &#39;http://www.w3.org/2000/svg&#39;;
+
+      // The badge is an overlay in the node&#39;s own corner: authored geometry is
+      // read, never rewritten, and the glyph carries the drill target so one
+      // click is enough. Double-click and Ctrl/Cmd+Enter keep working.
+      function drillBadge(node, childId, label) {
+        var existing = node.querySelector(&#39;[data-drill-badge]&#39;);
+        if (existing) existing.remove();
+        var rect = node.querySelector(&#39;rect&#39;);
+        if (!rect) return;
+        var x = parseFloat(rect.getAttribute(&#39;x&#39;));
+        var y = parseFloat(rect.getAttribute(&#39;y&#39;));
+        var width = parseFloat(rect.getAttribute(&#39;width&#39;));
+        if (!isFinite(x) || !isFinite(y) || !isFinite(width)) return;
+
+        var badge = document.createElementNS(SVG_NS, &#39;g&#39;);
+        badge.setAttribute(&#39;class&#39;, &#39;level-drill-badge&#39;);
+        // The target rides on data-drill-badge, not data-drill-to: the latter
+        // means &quot;a node that opens a level&quot; and is queried as such.
+        badge.setAttribute(&#39;data-drill-badge&#39;, childId);
+        badge.setAttribute(&#39;role&#39;, &#39;button&#39;);
+        badge.setAttribute(&#39;tabindex&#39;, &#39;0&#39;);
+        badge.setAttribute(&#39;aria-label&#39;, viewerText(&#39;viewer.levels.openNamed&#39;, { label: label }));
+        badge.setAttribute(&#39;transform&#39;, &#39;translate(&#39; + (x + width - 15) + &#39; &#39; + (y + 15) + &#39;)&#39;);
+        var title = document.createElementNS(SVG_NS, &#39;title&#39;);
+        title.textContent = viewerText(&#39;viewer.levels.openNamed&#39;, { label: label });
+        badge.appendChild(title);
+        var disc = document.createElementNS(SVG_NS, &#39;circle&#39;);
+        disc.setAttribute(&#39;class&#39;, &#39;level-drill-badge-disc&#39;);
+        disc.setAttribute(&#39;r&#39;, &#39;10&#39;);
+        badge.appendChild(disc);
+        var glyph = document.createElementNS(SVG_NS, &#39;g&#39;);
+        glyph.setAttribute(&#39;class&#39;, &#39;level-drill-badge-glyph&#39;);
+        var lens = document.createElementNS(SVG_NS, &#39;circle&#39;);
+        lens.setAttribute(&#39;cx&#39;, &#39;-1&#39;); lens.setAttribute(&#39;cy&#39;, &#39;-1&#39;); lens.setAttribute(&#39;r&#39;, &#39;3.7&#39;);
+        glyph.appendChild(lens);
+        var marks = document.createElementNS(SVG_NS, &#39;path&#39;);
+        marks.setAttribute(&#39;d&#39;, &#39;M1.7 1.7 L4.5 4.5 M-2.9 -1 H0.9 M-1 -2.9 V0.9&#39;);
+        glyph.appendChild(marks);
+        badge.appendChild(glyph);
+        node.appendChild(badge);
+      }
+
+      function markDrillable() {
+        manifest.levels.forEach(function (level) {
+          var svg = svgFor(level.id);
+          if (!svg) return;
+          var targets = drillTargets[level.id] || Object.create(null);
+          Array.prototype.forEach.call(svg.querySelectorAll(&#39;[data-node-id]&#39;), function (node) {
+            var child = targets[node.getAttribute(&#39;data-node-id&#39;)];
+            // An attribute plus an overlay badge; authored geometry is untouched.
+            if (child) {
+              node.setAttribute(&#39;data-drill-to&#39;, child);
+              drillBadge(node, child, byId[child] ? byId[child].label : child);
+            } else {
+              node.removeAttribute(&#39;data-drill-to&#39;);
+              var stale = node.querySelector(&#39;[data-drill-badge]&#39;);
+              if (stale) stale.remove();
+            }
+          });
+        });
+      }
+
+      // A framed stage with its own zoom-out control: once you are inside a
+      // level, leaving it is the mirror of the badge that opened it.
+      var zoomOut = document.createElement(&#39;div&#39;);
+      zoomOut.className = &#39;level-zoom-out no-print&#39;;
+      zoomOut.hidden = true;
+      var zoomOutBtn = document.createElement(&#39;button&#39;);
+      zoomOutBtn.type = &#39;button&#39;;
+      zoomOutBtn.className = &#39;level-zoom-out-btn&#39;;
+      zoomOutBtn.setAttribute(&#39;data-level-up&#39;, &#39;&#39;);
+      // Built through the DOM rather than an inline markup string: a literal
+      // svg tag in this source would be counted as a level by the artifact check.
+      var zoomOutIcon = document.createElementNS(SVG_NS, &#39;svg&#39;);
+      zoomOutIcon.setAttribute(&#39;viewBox&#39;, &#39;-8 -8 16 16&#39;);
+      zoomOutIcon.setAttribute(&#39;aria-hidden&#39;, &#39;true&#39;);
+      zoomOutIcon.setAttribute(&#39;focusable&#39;, &#39;false&#39;);
+      var zoomOutLens = document.createElementNS(SVG_NS, &#39;circle&#39;);
+      zoomOutLens.setAttribute(&#39;cx&#39;, &#39;-1&#39;);
+      zoomOutLens.setAttribute(&#39;cy&#39;, &#39;-1&#39;);
+      zoomOutLens.setAttribute(&#39;r&#39;, &#39;3.7&#39;);
+      zoomOutIcon.appendChild(zoomOutLens);
+      var zoomOutMarks = document.createElementNS(SVG_NS, &#39;path&#39;);
+      zoomOutMarks.setAttribute(&#39;d&#39;, &#39;M1.7 1.7 L4.5 4.5 M-2.9 -1 H0.9&#39;);
+      zoomOutIcon.appendChild(zoomOutMarks);
+      zoomOutBtn.appendChild(zoomOutIcon);
+      var zoomOutLabel = document.createElement(&#39;span&#39;);
+      zoomOutBtn.appendChild(zoomOutLabel);
+      zoomOut.appendChild(zoomOutBtn);
+      container.appendChild(zoomOut);
+      zoomOutBtn.addEventListener(&#39;click&#39;, function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        up();
+      });
+
+      function renderZoomOut() {
+        var level = byId[activeId];
+        var parent = level &amp;&amp; level.drillFrom ? byId[level.drillFrom.level] : null;
+        if (!parent) {
+          zoomOut.hidden = true;
+          container.removeAttribute(&#39;data-level-drilled&#39;);
+          return;
+        }
+        zoomOutLabel.textContent = parent.label;
+        zoomOutBtn.title = viewerText(&#39;viewer.levels.back&#39;, { label: parent.label });
+        zoomOutBtn.setAttribute(&#39;aria-label&#39;, viewerText(&#39;viewer.levels.back&#39;, { label: parent.label }));
+        zoomOut.hidden = false;
+        container.setAttribute(&#39;data-level-drilled&#39;, &#39;true&#39;);
+      }
+
+      function renderRail() {
+        var chain = pathTo(activeId);
+        crumbs.textContent = &#39;&#39;;
+        chain.forEach(function (id, index) {
+          var item = document.createElement(&#39;li&#39;);
+          var level = byId[id];
+          var current = id === activeId;
+          var button = document.createElement(&#39;button&#39;);
+          button.type = &#39;button&#39;;
+          button.className = &#39;level-crumb&#39;;
+          button.textContent = level.label;
+          button.setAttribute(&#39;data-level-target&#39;, id);
+          if (current) {
+            button.setAttribute(&#39;aria-current&#39;, &#39;true&#39;);
+            button.disabled = true;
+            if (level.note) button.title = level.note;
+          } else {
+            button.title = viewerText(&#39;viewer.levels.back&#39;, { label: level.label });
+          }
+          if (index &gt; 0) item.setAttribute(&#39;data-level-depth&#39;, String(index));
+          item.appendChild(button);
+          crumbs.appendChild(item);
+        });
+
+        children.textContent = &#39;&#39;;
+        var targets = drillTargets[activeId] || Object.create(null);
+        var targetNodes = Object.keys(targets);
+        if (targetNodes.length) {
+          var openLabel = document.createElement(&#39;span&#39;);
+          openLabel.className = &#39;level-children-label&#39;;
+          openLabel.textContent = viewerText(&#39;viewer.levels.open&#39;);
+          children.appendChild(openLabel);
+        }
+        targetNodes.forEach(function (nodeId) {
+          var childId = targets[nodeId];
+          var button = document.createElement(&#39;button&#39;);
+          button.type = &#39;button&#39;;
+          button.className = &#39;level-child&#39;;
+          button.setAttribute(&#39;data-level-target&#39;, childId);
+          button.textContent = byId[childId].label;
+          button.title = viewerText(&#39;viewer.levels.openFrom&#39;, {
+            label: byId[childId].label,
+            node: nodeId,
+          });
+          children.appendChild(button);
+        });
+        children.hidden = children.childNodes.length === 0;
+        rail.hidden = false;
+      }
+
+      function show(id, options) {
+        if (!byId[id] || id === activeId) return false;
+        var nextSvg = svgFor(id);
+        if (!nextSvg) return false;
+
+        clearTransientState();
+
+        manifest.levels.forEach(function (level) {
+          setVisible(svgFor(level.id), level.id === id);
+          setVisible(cardsFor(level.id), level.id === id);
+        });
+        activeId = id;
+        renderRail();
+        renderZoomOut();
+
+        document.documentElement.setAttribute(&#39;data-active-level&#39;, id);
+        Archify.stage.notify({ level: id, previous: options &amp;&amp; options.previous });
+
+        if (!options || options.updateHash !== false) {
+          viewerReplaceHash({ level: id === root ? null : id });
+        }
+        return true;
+      }
+
+      function up() {
+        var level = byId[activeId];
+        return level &amp;&amp; level.drillFrom ? show(level.drillFrom.level) : false;
+      }
+
+      rail.addEventListener(&#39;click&#39;, function (event) {
+        var button = event.target.closest(&#39;[data-level-target]&#39;);
+        if (!button) return;
+        event.preventDefault();
+        show(button.getAttribute(&#39;data-level-target&#39;));
+      });
+
+      // The badge is an explicit control, so one click on it drills. Capture
+      // phase with propagation stopped keeps the same click from also being
+      // read as &quot;focus this node&quot; by the passport.
+      function drillFromBadge(event) {
+        var badge = event.target.closest &amp;&amp; event.target.closest(&#39;[data-drill-badge]&#39;);
+        if (!badge) return false;
+        event.preventDefault();
+        event.stopPropagation();
+        show(badge.getAttribute(&#39;data-drill-badge&#39;));
+        return true;
+      }
+      container.addEventListener(&#39;click&#39;, drillFromBadge, true);
+      container.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.key !== &#39;Enter&#39; &amp;&amp; event.key !== &#39; &#39;) return;
+        drillFromBadge(event);
+      }, true);
+
+      // Anywhere else on a drillable node, drilling stays a deliberate second
+      // gesture: a single click already means focus.
+      container.addEventListener(&#39;dblclick&#39;, function (event) {
+        var node = event.target.closest(&#39;[data-drill-to]&#39;);
+        if (!node) return;
+        event.preventDefault();
+        show(node.getAttribute(&#39;data-drill-to&#39;));
+      });
+
+      container.addEventListener(&#39;keydown&#39;, function (event) {
+        if (event.key !== &#39;Enter&#39; || !(event.ctrlKey || event.metaKey)) return;
+        var node = event.target.closest &amp;&amp; event.target.closest(&#39;[data-drill-to]&#39;);
+        if (!node) return;
+        event.preventDefault();
+        show(node.getAttribute(&#39;data-drill-to&#39;));
+      });
+
+      // Absent means &quot;keep the level already on stage&quot;. An explicit level that
+      // is not in the manifest falls back to root; a hash written by focus or
+      // route, with no level param, must not.
+      function requestedLevel() {
+        var hash = window.location.hash || &#39;&#39;;
+        if (!/(?:^|[#&amp;])level=/.test(hash)) return { present: false, id: null };
+        var match = /(?:^|[#&amp;])level=([^&amp;]*)/.exec(hash);
+        var id = match ? decodeURIComponent(match[1]) : &#39;&#39;;
+        return { present: true, id: byId[id] ? id : null };
+      }
+
+      window.addEventListener(&#39;hashchange&#39;, function () {
+        var requested = requestedLevel();
+        if (!requested.present) return;
+        var next = requested.id || root;
+        if (next !== activeId) show(next, { updateHash: false });
+      });
+
+      markDrillable();
+
+      // Establish the starting level without rewriting a deep link that
+      // already names it.
+      var requested = requestedLevel();
+      var initial = requested.present ? (requested.id || root) : (manifest.active || root);
+      activeId = null;
+      show(initial, { updateHash: initial !== root &amp;&amp; !requested.present });
+      if (activeId !== initial) show(root, { updateHash: false });
+
+      return {
+        count: manifest.levels.length,
+        root: root,
+        active: function () { return activeId; },
+        path: function () { return pathTo(activeId); },
+        labelOf: function (id) { return byId[id] ? byId[id].label : null; },
+        drillTargets: function (id) {
+          var targets = drillTargets[id || activeId] || {};
+          return Object.keys(targets).map(function (nodeId) {
+            return { node: nodeId, level: targets[nodeId] };
+          });
+        },
+        show: show,
+        up: up
+      };
+    })();
+
+
     /* ============================================================
        Explore — stable-ID neighborhood focus + dependency-free pan/zoom.
        Renderer IDs become deep-linkable semantic hooks without turning the
@@ -33426,378 +33782,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       };
     })();
 
-    Archify.levels = (function () {
-      var data = document.getElementById(&#39;archify-levels-data&#39;);
-      var inert = {
-        count: 0,
-        root: null,
-        active: function () { return null; },
-        path: function () { return []; },
-        labelOf: function () { return null; },
-        drillTargets: function () { return []; },
-        show: function () { return false; },
-        up: function () { return false; }
-      };
-      if (!data) return inert;
-
-      var manifest = null;
-      try { manifest = JSON.parse(data.textContent || &#39;null&#39;); } catch (_) { manifest = null; }
-      if (!manifest || !manifest.levels || !manifest.levels.length) return inert;
-
-      var container = Archify.stage.container();
-      var shell = document.querySelector(&#39;.container&#39;);
-      var rail = document.getElementById(&#39;level-rail&#39;);
-      var crumbs = document.getElementById(&#39;level-crumbs&#39;);
-      var children = document.getElementById(&#39;level-children&#39;);
-      if (!container || !rail || !crumbs || !children) return inert;
-
-      var byId = Object.create(null);
-      manifest.levels.forEach(function (level) { byId[level.id] = level; });
-      var root = manifest.root;
-      var activeId = null;
-
-      // The manifest declares each child&#39;s parent; the viewer needs the
-      // inverse to know which node on the visible level opens something.
-      var drillTargets = Object.create(null);
-      manifest.levels.forEach(function (level) {
-        if (!level.drillFrom) return;
-        var parent = level.drillFrom.level;
-        if (!drillTargets[parent]) drillTargets[parent] = Object.create(null);
-        drillTargets[parent][level.drillFrom.node] = level.id;
-      });
-
-      function svgFor(id) {
-        return container.querySelector(&#39;svg[data-level=&quot;&#39; + id + &#39;&quot;]&#39;);
-      }
-      function cardsFor(id) {
-        return shell ? shell.querySelector(&#39;.cards[data-level=&quot;&#39; + id + &#39;&quot;]&#39;) : null;
-      }
-      function pathTo(id) {
-        var chain = [];
-        var guard = 0;
-        var cursor = byId[id];
-        while (cursor &amp;&amp; guard &lt; manifest.levels.length + 1) {
-          chain.unshift(cursor.id);
-          cursor = cursor.drillFrom ? byId[cursor.drillFrom.level] : null;
-          guard += 1;
-        }
-        return chain;
-      }
-
-      function setVisible(element, visible) {
-        if (!element) return;
-        if (visible) {
-          element.removeAttribute(&#39;hidden&#39;);
-          element.removeAttribute(&#39;aria-hidden&#39;);
-          element.setAttribute(&#39;data-level-active&#39;, &#39;true&#39;);
-        } else {
-          element.setAttribute(&#39;hidden&#39;, &#39;hidden&#39;);
-          element.setAttribute(&#39;aria-hidden&#39;, &#39;true&#39;);
-          element.removeAttribute(&#39;data-level-active&#39;);
-        }
-      }
-
-      // Transient reader state belongs to the level it was raised on. Clearing
-      // it through each module&#39;s own public API avoids reaching into their
-      // internals and leaves every owner consistent.
-      function clearTransientState() {
-        try { if (Archify.focus) { Archify.focus.clearReach(); Archify.focus.clear(); } } catch (_) {}
-        try { if (Archify.semanticLens) Archify.semanticLens.clear(); } catch (_) {}
-        try { if (Archify.routeProbe) Archify.routeProbe.clear(); } catch (_) {}
-        try { if (Archify.finder) Archify.finder.close(); } catch (_) {}
-        try { if (Archify.radar) Archify.radar.close(); } catch (_) {}
-      }
-
-      // Which node opens which level is a fixed property of the document, not
-      // of what is on screen, so every level is marked once. Marking only the
-      // active level would leave stale attributes behind on switch.
-      var SVG_NS = &#39;http://www.w3.org/2000/svg&#39;;
-
-      // The badge is an overlay in the node&#39;s own corner: authored geometry is
-      // read, never rewritten, and the glyph carries the drill target so one
-      // click is enough. Double-click and Ctrl/Cmd+Enter keep working.
-      function drillBadge(node, childId, label) {
-        var existing = node.querySelector(&#39;[data-drill-badge]&#39;);
-        if (existing) existing.remove();
-        var rect = node.querySelector(&#39;rect&#39;);
-        if (!rect) return;
-        var x = parseFloat(rect.getAttribute(&#39;x&#39;));
-        var y = parseFloat(rect.getAttribute(&#39;y&#39;));
-        var width = parseFloat(rect.getAttribute(&#39;width&#39;));
-        if (!isFinite(x) || !isFinite(y) || !isFinite(width)) return;
-
-        var badge = document.createElementNS(SVG_NS, &#39;g&#39;);
-        badge.setAttribute(&#39;class&#39;, &#39;level-drill-badge&#39;);
-        // The target rides on data-drill-badge, not data-drill-to: the latter
-        // means &quot;a node that opens a level&quot; and is queried as such.
-        badge.setAttribute(&#39;data-drill-badge&#39;, childId);
-        badge.setAttribute(&#39;role&#39;, &#39;button&#39;);
-        badge.setAttribute(&#39;tabindex&#39;, &#39;0&#39;);
-        badge.setAttribute(&#39;aria-label&#39;, viewerText(&#39;viewer.levels.openNamed&#39;, { label: label }));
-        badge.setAttribute(&#39;transform&#39;, &#39;translate(&#39; + (x + width - 15) + &#39; &#39; + (y + 15) + &#39;)&#39;);
-        var title = document.createElementNS(SVG_NS, &#39;title&#39;);
-        title.textContent = viewerText(&#39;viewer.levels.openNamed&#39;, { label: label });
-        badge.appendChild(title);
-        var disc = document.createElementNS(SVG_NS, &#39;circle&#39;);
-        disc.setAttribute(&#39;class&#39;, &#39;level-drill-badge-disc&#39;);
-        disc.setAttribute(&#39;r&#39;, &#39;10&#39;);
-        badge.appendChild(disc);
-        var glyph = document.createElementNS(SVG_NS, &#39;g&#39;);
-        glyph.setAttribute(&#39;class&#39;, &#39;level-drill-badge-glyph&#39;);
-        var lens = document.createElementNS(SVG_NS, &#39;circle&#39;);
-        lens.setAttribute(&#39;cx&#39;, &#39;-1&#39;); lens.setAttribute(&#39;cy&#39;, &#39;-1&#39;); lens.setAttribute(&#39;r&#39;, &#39;3.7&#39;);
-        glyph.appendChild(lens);
-        var marks = document.createElementNS(SVG_NS, &#39;path&#39;);
-        marks.setAttribute(&#39;d&#39;, &#39;M1.7 1.7 L4.5 4.5 M-2.9 -1 H0.9 M-1 -2.9 V0.9&#39;);
-        glyph.appendChild(marks);
-        badge.appendChild(glyph);
-        node.appendChild(badge);
-      }
-
-      function markDrillable() {
-        manifest.levels.forEach(function (level) {
-          var svg = svgFor(level.id);
-          if (!svg) return;
-          var targets = drillTargets[level.id] || Object.create(null);
-          Array.prototype.forEach.call(svg.querySelectorAll(&#39;[data-node-id]&#39;), function (node) {
-            var child = targets[node.getAttribute(&#39;data-node-id&#39;)];
-            // An attribute plus an overlay badge; authored geometry is untouched.
-            if (child) {
-              node.setAttribute(&#39;data-drill-to&#39;, child);
-              drillBadge(node, child, byId[child] ? byId[child].label : child);
-            } else {
-              node.removeAttribute(&#39;data-drill-to&#39;);
-              var stale = node.querySelector(&#39;[data-drill-badge]&#39;);
-              if (stale) stale.remove();
-            }
-          });
-        });
-      }
-
-      // A framed stage with its own zoom-out control: once you are inside a
-      // level, leaving it is the mirror of the badge that opened it.
-      var zoomOut = document.createElement(&#39;div&#39;);
-      zoomOut.className = &#39;level-zoom-out no-print&#39;;
-      zoomOut.hidden = true;
-      var zoomOutBtn = document.createElement(&#39;button&#39;);
-      zoomOutBtn.type = &#39;button&#39;;
-      zoomOutBtn.className = &#39;level-zoom-out-btn&#39;;
-      zoomOutBtn.setAttribute(&#39;data-level-up&#39;, &#39;&#39;);
-      // Built through the DOM rather than an inline markup string: a literal
-      // svg tag in this source would be counted as a level by the artifact check.
-      var zoomOutIcon = document.createElementNS(SVG_NS, &#39;svg&#39;);
-      zoomOutIcon.setAttribute(&#39;viewBox&#39;, &#39;-8 -8 16 16&#39;);
-      zoomOutIcon.setAttribute(&#39;aria-hidden&#39;, &#39;true&#39;);
-      zoomOutIcon.setAttribute(&#39;focusable&#39;, &#39;false&#39;);
-      var zoomOutLens = document.createElementNS(SVG_NS, &#39;circle&#39;);
-      zoomOutLens.setAttribute(&#39;cx&#39;, &#39;-1&#39;);
-      zoomOutLens.setAttribute(&#39;cy&#39;, &#39;-1&#39;);
-      zoomOutLens.setAttribute(&#39;r&#39;, &#39;3.7&#39;);
-      zoomOutIcon.appendChild(zoomOutLens);
-      var zoomOutMarks = document.createElementNS(SVG_NS, &#39;path&#39;);
-      zoomOutMarks.setAttribute(&#39;d&#39;, &#39;M1.7 1.7 L4.5 4.5 M-2.9 -1 H0.9&#39;);
-      zoomOutIcon.appendChild(zoomOutMarks);
-      zoomOutBtn.appendChild(zoomOutIcon);
-      var zoomOutLabel = document.createElement(&#39;span&#39;);
-      zoomOutBtn.appendChild(zoomOutLabel);
-      zoomOut.appendChild(zoomOutBtn);
-      container.appendChild(zoomOut);
-      zoomOutBtn.addEventListener(&#39;click&#39;, function (event) {
-        event.preventDefault();
-        event.stopPropagation();
-        up();
-      });
-
-      function renderZoomOut() {
-        var level = byId[activeId];
-        var parent = level &amp;&amp; level.drillFrom ? byId[level.drillFrom.level] : null;
-        if (!parent) {
-          zoomOut.hidden = true;
-          container.removeAttribute(&#39;data-level-drilled&#39;);
-          return;
-        }
-        zoomOutLabel.textContent = parent.label;
-        zoomOutBtn.title = viewerText(&#39;viewer.levels.back&#39;, { label: parent.label });
-        zoomOutBtn.setAttribute(&#39;aria-label&#39;, viewerText(&#39;viewer.levels.back&#39;, { label: parent.label }));
-        zoomOut.hidden = false;
-        container.setAttribute(&#39;data-level-drilled&#39;, &#39;true&#39;);
-      }
-
-      function renderRail() {
-        var chain = pathTo(activeId);
-        crumbs.textContent = &#39;&#39;;
-        chain.forEach(function (id, index) {
-          var item = document.createElement(&#39;li&#39;);
-          var level = byId[id];
-          var current = id === activeId;
-          var button = document.createElement(&#39;button&#39;);
-          button.type = &#39;button&#39;;
-          button.className = &#39;level-crumb&#39;;
-          button.textContent = level.label;
-          button.setAttribute(&#39;data-level-target&#39;, id);
-          if (current) {
-            button.setAttribute(&#39;aria-current&#39;, &#39;true&#39;);
-            button.disabled = true;
-            if (level.note) button.title = level.note;
-          } else {
-            button.title = viewerText(&#39;viewer.levels.back&#39;, { label: level.label });
-          }
-          if (index &gt; 0) item.setAttribute(&#39;data-level-depth&#39;, String(index));
-          item.appendChild(button);
-          crumbs.appendChild(item);
-        });
-
-        children.textContent = &#39;&#39;;
-        var targets = drillTargets[activeId] || Object.create(null);
-        var targetNodes = Object.keys(targets);
-        if (targetNodes.length) {
-          var openLabel = document.createElement(&#39;span&#39;);
-          openLabel.className = &#39;level-children-label&#39;;
-          openLabel.textContent = viewerText(&#39;viewer.levels.open&#39;);
-          children.appendChild(openLabel);
-        }
-        targetNodes.forEach(function (nodeId) {
-          var childId = targets[nodeId];
-          var button = document.createElement(&#39;button&#39;);
-          button.type = &#39;button&#39;;
-          button.className = &#39;level-child&#39;;
-          button.setAttribute(&#39;data-level-target&#39;, childId);
-          button.textContent = byId[childId].label;
-          button.title = viewerText(&#39;viewer.levels.openFrom&#39;, {
-            label: byId[childId].label,
-            node: nodeId,
-          });
-          children.appendChild(button);
-        });
-        children.hidden = children.childNodes.length === 0;
-        rail.hidden = false;
-      }
-
-      function show(id, options) {
-        if (!byId[id] || id === activeId) return false;
-        var nextSvg = svgFor(id);
-        if (!nextSvg) return false;
-
-        clearTransientState();
-
-        manifest.levels.forEach(function (level) {
-          setVisible(svgFor(level.id), level.id === id);
-          setVisible(cardsFor(level.id), level.id === id);
-        });
-        activeId = id;
-        renderRail();
-        renderZoomOut();
-
-        document.documentElement.setAttribute(&#39;data-active-level&#39;, id);
-        Archify.stage.notify({ level: id, previous: options &amp;&amp; options.previous });
-
-        if (!options || options.updateHash !== false) {
-          viewerReplaceHash({ level: id === root ? null : id });
-        }
-        return true;
-      }
-
-      function up() {
-        var level = byId[activeId];
-        return level &amp;&amp; level.drillFrom ? show(level.drillFrom.level) : false;
-      }
-
-      rail.addEventListener(&#39;click&#39;, function (event) {
-        var button = event.target.closest(&#39;[data-level-target]&#39;);
-        if (!button) return;
-        event.preventDefault();
-        show(button.getAttribute(&#39;data-level-target&#39;));
-      });
-
-      // The badge is an explicit control, so one click on it drills. Capture
-      // phase with propagation stopped keeps the same click from also being
-      // read as &quot;focus this node&quot; by the passport.
-      function drillFromBadge(event) {
-        var badge = event.target.closest &amp;&amp; event.target.closest(&#39;[data-drill-badge]&#39;);
-        if (!badge) return false;
-        event.preventDefault();
-        event.stopPropagation();
-        show(badge.getAttribute(&#39;data-drill-badge&#39;));
-        return true;
-      }
-      container.addEventListener(&#39;click&#39;, drillFromBadge, true);
-      container.addEventListener(&#39;keydown&#39;, function (event) {
-        if (event.key !== &#39;Enter&#39; &amp;&amp; event.key !== &#39; &#39;) return;
-        drillFromBadge(event);
-      }, true);
-
-      // Anywhere else on a drillable node, drilling stays a deliberate second
-      // gesture: a single click already means focus.
-      container.addEventListener(&#39;dblclick&#39;, function (event) {
-        var node = event.target.closest(&#39;[data-drill-to]&#39;);
-        if (!node) return;
-        event.preventDefault();
-        show(node.getAttribute(&#39;data-drill-to&#39;));
-      });
-
-      container.addEventListener(&#39;keydown&#39;, function (event) {
-        if (event.key !== &#39;Enter&#39; || !(event.ctrlKey || event.metaKey)) return;
-        var node = event.target.closest &amp;&amp; event.target.closest(&#39;[data-drill-to]&#39;);
-        if (!node) return;
-        event.preventDefault();
-        show(node.getAttribute(&#39;data-drill-to&#39;));
-      });
-
-      document.addEventListener(&#39;keydown&#39;, function (event) {
-        if (event.key !== &#39;Escape&#39; || event.defaultPrevented) return;
-        if (activeId === root) return;
-        // Yield to any owner that treats Escape as dismissal of its own layer.
-        var stageSvg = svgFor(activeId);
-        if (stageSvg &amp;&amp; stageSvg.hasAttribute(&#39;data-focus-active&#39;)) return;
-        if (up()) event.preventDefault();
-      });
-
-      // Absent means &quot;keep the level already on stage&quot;. An explicit level that
-      // is not in the manifest falls back to root; a hash written by focus or
-      // route, with no level param, must not.
-      function requestedLevel() {
-        var hash = window.location.hash || &#39;&#39;;
-        if (!/(?:^|[#&amp;])level=/.test(hash)) return { present: false, id: null };
-        var match = /(?:^|[#&amp;])level=([^&amp;]*)/.exec(hash);
-        var id = match ? decodeURIComponent(match[1]) : &#39;&#39;;
-        return { present: true, id: byId[id] ? id : null };
-      }
-
-      window.addEventListener(&#39;hashchange&#39;, function () {
-        var requested = requestedLevel();
-        if (!requested.present) return;
-        var next = requested.id || root;
-        if (next !== activeId) show(next, { updateHash: false });
-      });
-
-      markDrillable();
-
-      // Establish the starting level without rewriting a deep link that
-      // already names it.
-      var requested = requestedLevel();
-      var initial = requested.present ? (requested.id || root) : (manifest.active || root);
-      activeId = null;
-      show(initial, { updateHash: initial !== root &amp;&amp; !requested.present });
-      if (activeId !== initial) show(root, { updateHash: false });
-
-      return {
-        count: manifest.levels.length,
-        root: root,
-        active: function () { return activeId; },
-        path: function () { return pathTo(activeId); },
-        labelOf: function (id) { return byId[id] ? byId[id].label : null; },
-        drillTargets: function (id) {
-          var targets = drillTargets[id || activeId] || {};
-          return Object.keys(targets).map(function (nodeId) {
-            return { node: nodeId, level: targets[nodeId] };
-          });
-        },
-        show: show,
-        up: up
-      };
-    })();
-
-
     /* ============================================================
        Diagram Guide — a factual command deck over existing interactions.
        Counts come from compiled semantics; actions delegate to Finder, Route
@@ -33980,7 +33964,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
          R -&gt; start/clear Route Probe
          / -&gt; open node finder or the active route endpoint picker
          + / - -&gt; zoom, 0 -&gt; reset view
-         Escape -&gt; clear temporary trace/focus/view first, then exit presentation
+         Escape -&gt; clear temporary trace/focus/view first, then climb one level, then exit presentation
        Ignored when focus is inside an input/textarea/contenteditable.
        ============================================================ */
     document.addEventListener(&#39;keydown&#39;, function (e) {
@@ -34051,6 +34035,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       } else if (e.key === &#39;Escape&#39; &amp;&amp; Archify.focus.active()) {
         e.preventDefault();
         Archify.focus.clear({ restoreFocus: true });
+      } else if (e.key === &#39;Escape&#39; &amp;&amp; Archify.levels.up()) {
+        e.preventDefault();
       } else if (e.key === &#39;Escape&#39; &amp;&amp; Archify.presentation.active()) {
         e.preventDefault();
         Archify.presentation.exit();

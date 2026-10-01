@@ -315,15 +315,6 @@
         show(node.getAttribute('data-drill-to'));
       });
 
-      document.addEventListener('keydown', function (event) {
-        if (event.key !== 'Escape' || event.defaultPrevented) return;
-        if (activeId === root) return;
-        // Yield to any owner that treats Escape as dismissal of its own layer.
-        var stageSvg = svgFor(activeId);
-        if (stageSvg && stageSvg.hasAttribute('data-focus-active')) return;
-        if (up()) event.preventDefault();
-      });
-
       // Absent means "keep the level already on stage". An explicit level that
       // is not in the manifest falls back to root; a hash written by focus or
       // route, with no level param, must not.

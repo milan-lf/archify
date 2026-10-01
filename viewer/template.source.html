@@ -1041,6 +1041,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     })();
     Archify.sourceEvidence.installBeacons();
 
+/* ARCHIFY:LEVELS */
+
 /* ARCHIFY:FOCUS */
 
 /* ARCHIFY:INTENT_TRACE */
@@ -1225,8 +1227,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
 /* ARCHIFY:SEMANTIC_LENS */
 
-/* ARCHIFY:LEVELS */
-
     /* ============================================================
        Diagram Guide — a factual command deck over existing interactions.
        Counts come from compiled semantics; actions delegate to Finder, Route
@@ -1409,7 +1409,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
          R -> start/clear Route Probe
          / -> open node finder or the active route endpoint picker
          + / - -> zoom, 0 -> reset view
-         Escape -> clear temporary trace/focus/view first, then exit presentation
+         Escape -> clear temporary trace/focus/view first, then climb one level, then exit presentation
        Ignored when focus is inside an input/textarea/contenteditable.
        ============================================================ */
     document.addEventListener('keydown', function (e) {
@@ -1480,6 +1480,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       } else if (e.key === 'Escape' && Archify.focus.active()) {
         e.preventDefault();
         Archify.focus.clear({ restoreFocus: true });
+      } else if (e.key === 'Escape' && Archify.levels.up()) {
+        e.preventDefault();
       } else if (e.key === 'Escape' && Archify.presentation.active()) {
         e.preventDefault();
         Archify.presentation.exit();

@@ -369,7 +369,7 @@ test('proof gallery type filters localize with the selected language', () => {
 
 test('scenario guide type filters use consistent Chinese diagram names', () => {
   const template = fs.readFileSync(path.join(repoRoot, 'scripts/guide-template.html'), 'utf8');
-  assert.match(template, /var types = \[\[DIAGRAM_TYPES_JSON\]\];/);
+  assert.match(template, /var types = \[\[GUIDE_TYPES_JSON\]\];/);
   assert.match(template, /var labels = \[\[DIAGRAM_TYPE_LABELS_JSON\]\];/);
 
   const html = fs.readFileSync(path.join(repoRoot, 'docs/guide.html'), 'utf8');
@@ -377,6 +377,11 @@ test('scenario guide type filters use consistent Chinese diagram names', () => {
     html.includes(`var labels = ${JSON.stringify(DIAGRAM_TYPE_LABELS)};`),
     'docs/guide.html: Guide filters must use the shared Chinese diagram names',
   );
+  const types = JSON.parse(html.match(/var types = (\[[^\]]*\]);/)[1]);
+  assert.ok(types.includes('levels'), 'docs/guide.html: every recipe type has a filter');
+  for (const type of types) {
+    assert.ok(DIAGRAM_TYPE_LABELS.en[type] && DIAGRAM_TYPE_LABELS.zh[type], `guide filter ${type} needs EN and ZH labels`);
+  }
 });
 
 test('real Chrome preserves language through entry, navigation, selection, refresh, and consistent navigation chrome', {

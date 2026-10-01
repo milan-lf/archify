@@ -182,6 +182,28 @@ test('Levels drill-down switches the stage, rail, and every stage-bound module',
   assert.equal(deepLinked.stageLevel, 'leaf');
   assert.deepEqual(deepLinked.visibleCards, ['leaf']);
   assert.equal(deepLinked.radarCount, 1, 'modules bind to the deep-linked level, not the first one');
+
+  // Interaction state in the same link restores against the named level, and
+  // Escape dismisses each temporary layer before it climbs a level.
+  await load(artifact, '#level=mid&focus=one');
+  const focusedDeepLink = await run(`(function(){
+    return {
+      active: Archify.levels.active(),
+      focus: Archify.focus.active(),
+      focusOnStage: Archify.stage.svg().hasAttribute('data-focus-active')
+    };
+  })()`);
+  assert.deepEqual(focusedDeepLink, { active: 'mid', focus: 'one', focusOnStage: true });
+  const escape = `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`;
+  await run(escape);
+  assert.equal(await run('Archify.focus.active()'), null, 'the first Escape clears focus');
+  assert.equal((await snapshot()).active, 'mid', 'and leaves the level on stage');
+  await run('Archify.radar.open()');
+  await run(escape);
+  assert.equal(await run('Archify.radar.isOpen()'), false, 'Escape closes an open overlay');
+  assert.equal((await snapshot()).active, 'mid', 'without also climbing a level');
+  await run(escape);
+  assert.equal((await snapshot()).active, 'root', 'with nothing left to dismiss, Escape climbs');
   // An ordinary single-diagram artifact keeps the rail out of the document
   // flow entirely; a hidden-but-laid-out rail would cost invisible height and
   // stall the adaptive reader.

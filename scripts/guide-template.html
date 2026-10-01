@@ -246,8 +246,8 @@
     (function () {
       'use strict';
       var recipes = JSON.parse(document.getElementById('guide-data').textContent);
-      var types = [[DIAGRAM_TYPES_JSON]];
-      var colors = { architecture:'#0891b2', workflow:'#047857', sequence:'#6d28d9', dataflow:'#b45309', lifecycle:'#be123c' };
+      var types = [[GUIDE_TYPES_JSON]];
+      var colors = { architecture:'#0891b2', workflow:'#047857', sequence:'#6d28d9', dataflow:'#b45309', lifecycle:'#be123c', levels:'#475569' };
       var language = ArchifySiteLanguage.read();
       var activeType = 'all';
       var lastRecipe = null;
