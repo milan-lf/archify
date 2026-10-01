@@ -50,8 +50,8 @@ test('guide page: ships bilingual recipes and syntactically valid interaction co
   assert.equal(data.filter((recipe) => recipe.type === 'workflow').length, 3);
   assert.ok(data.every((recipe) => recipe.en.prompt && recipe.zh.prompt && recipe.proof));
   assert.ok(data.some((recipe) => recipe.id === 'layout-repair'));
-  assert.match(html, /12 small, opinionated starting points\./);
-  assert.match(html, /12 个小而专的起点。/);
+  assert.match(html, /13 small, opinionated starting points\./);
+  assert.match(html, /13 个小而专的起点。/);
   assert.match(html, /gallery\.html#proof-/);
   assert.match(html, /Open verified example/);
   assert.match(html, /打开验证成品/);
