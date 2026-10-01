@@ -54,6 +54,10 @@ test('guide: representative scenarios map to specialized recipes', () => {
     ['Show a system overview via an architecture diagram', 'system-overview'],
     ['分层架构', 'system-overview'],
     ['log levels', 'system-overview'],
+    ['Show the Context, Containers, and Components of our billing system', 'c4-levels'],
+    ['Show the context, containers and components of our billing system', 'c4-levels'],
+    ['Explain our containers and components', 'c4-levels'],
+    ['Map the services and components of the platform', 'system-overview'],
     ['Draw deployment topology with named boundary crossings', 'deployment-ownership'],
     ['Explain an API request via a webhook callback', 'async-roundtrip'],
   ];
