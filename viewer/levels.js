@@ -21,7 +21,6 @@
       var rail = document.getElementById('level-rail');
       var crumbs = document.getElementById('level-crumbs');
       var children = document.getElementById('level-children');
-      var guided = document.getElementById('guided-views');
       if (!container || !rail || !crumbs || !children) return inert;
 
       var byId = Object.create(null);
@@ -79,8 +78,6 @@
         try { if (Archify.routeProbe) Archify.routeProbe.clear(); } catch (_) {}
         try { if (Archify.finder) Archify.finder.close(); } catch (_) {}
         try { if (Archify.radar) Archify.radar.close(); } catch (_) {}
-        try { if (Archify.guidedViews && Archify.guidedViews.isPlaying()) Archify.guidedViews.pause(); } catch (_) {}
-        try { if (Archify.guidedViews) Archify.guidedViews.showAll(); } catch (_) {}
       }
 
       // Which node opens which level is a fixed property of the document, not
@@ -263,20 +260,6 @@
         renderRail();
         renderZoomOut();
 
-        // Each level authors its own chapters, so install the ones belonging
-        // to the level now on stage. A level without chapters hides the strip
-        // rather than leaving the previous level's stops on screen.
-        var skipViews = options && options.skipViews;
-        if (!skipViews && Archify.guidedViews && typeof Archify.guidedViews.load === 'function') {
-          Archify.guidedViews.load((byId[id].views || []).map(function (view) {
-            // Hand over a copy: installing filters `focus` against the level
-            // on stage, and the manifest entry must stay reusable on return.
-            return { id: view.id, label: view.label, note: view.note, focus: (view.focus || []).slice() };
-          }));
-        } else if (!skipViews && guided) {
-          guided.hidden = true;
-        }
-
         document.documentElement.setAttribute('data-active-level', id);
         Archify.stage.notify({ level: id, previous: options && options.previous });
 
@@ -366,8 +349,8 @@
       var requested = requestedLevel();
       var initial = requested.present ? (requested.id || root) : (manifest.active || root);
       activeId = null;
-      show(initial, { updateHash: initial !== root && !requested.present, skipViews: initial === root });
-      if (activeId !== initial) show(root, { updateHash: false, skipViews: true });
+      show(initial, { updateHash: initial !== root && !requested.present });
+      if (activeId !== initial) show(root, { updateHash: false });
 
       return {
         count: manifest.levels.length,

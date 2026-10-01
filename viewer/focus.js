@@ -53,6 +53,16 @@
       var manualLensPosition = null;
       var reachabilityMode = null;
       var activeReachability = null;
+      // A caller-supplied urlKey (for example `view`) is written into a shared
+      // hash, so it is remembered and removed with the focus it stands for.
+      var customHashKey = null;
+      function replaceFocusHash(updates) {
+        if (customHashKey && !Object.prototype.hasOwnProperty.call(updates, customHashKey)) {
+          updates[customHashKey] = null;
+        }
+        customHashKey = null;
+        viewerReplaceHash(updates);
+      }
       var svgNamespace = 'http://www.w3.org/2000/svg';
       var reducedMotionQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
       var finePointerQuery = window.matchMedia ? window.matchMedia('(hover: hover) and (pointer: fine)') : null;
@@ -159,7 +169,7 @@
         }
         if (options.updateUrl === true && activeIds.length === 1) {
           try {
-            viewerReplaceHash({ focus: activeIds[0], reach: null, relation: null, route: null, lens: null });
+            replaceFocusHash({ focus: activeIds[0], reach: null, relation: null, route: null, lens: null });
           } catch (_) {}
         }
       }
@@ -235,7 +245,7 @@
         }
         if (options.updateUrl !== false) {
           try {
-            viewerReplaceHash({
+            replaceFocusHash({
               focus: activeIds[0], reach: direction, relation: null, route: null, lens: null,
             });
           } catch (_) {}
@@ -822,7 +832,7 @@
         });
         revealPinnedRelationship(record);
         if (options.updateUrl !== false && record.id) {
-          try { viewerReplaceHash({ relation: record.id, focus: null, reach: null, route: null, lens: null }); } catch (_) {}
+          try { replaceFocusHash({ relation: record.id, focus: null, reach: null, route: null, lens: null }); } catch (_) {}
         }
         return true;
       }
@@ -1330,7 +1340,7 @@
           Archify.view.reset({ automatic: true });
         }
         if (options.updateUrl !== false) {
-          try { viewerReplaceHash({ focus: null, reach: null, relation: null, route: null, lens: null }); } catch (_) {}
+          try { replaceFocusHash({ focus: null, reach: null, relation: null, route: null, lens: null }); } catch (_) {}
         }
         if (restoreNode) {
           try { restoreNode.focus({ preventScroll: true }); }
@@ -1405,7 +1415,8 @@
             var hashUpdates = { reach: null, relation: null, route: null, lens: null };
             hashUpdates[key] = value;
             if (key !== 'focus') hashUpdates.focus = null;
-            viewerReplaceHash(hashUpdates);
+            replaceFocusHash(hashUpdates);
+            if (key !== 'focus' && key !== 'level') customHashKey = key;
           } catch (_) {}
         }
         return true;

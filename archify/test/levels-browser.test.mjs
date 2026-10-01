@@ -45,8 +45,6 @@ test('Levels drill-down switches the stage, rail, and every stage-bound module',
   write('mid.architecture.json', architecture('Mid', ['one', 'two', 'three'], [1100, 520],
     [{ id: 'midone', label: 'Mid one', focus: ['one', 'two'] },
      { id: 'midtwo', label: 'Mid two', focus: ['three'] }]));
-  // A level with no chapters at all: the strip must hide rather than keep
-  // showing the previous level's stops.
   write('leaf.architecture.json', architecture('Leaf', ['solo'], [800, 460]));
   write('doc.levels.json', {
     schema_version: 1,
@@ -108,11 +106,7 @@ test('Levels drill-down switches the stage, rail, and every stage-bound module',
       visibleSvgs: Array.prototype.map.call(document.querySelectorAll('.diagram-container > svg:not([hidden])'), function (s) { return s.getAttribute('data-level'); }),
       visibleCards: Array.prototype.map.call(document.querySelectorAll('.cards:not([hidden])'), function (c) { return c.getAttribute('data-level'); }),
       radarCount: Archify.radar.count(),
-      viewCount: Archify.guidedViews.count,
-      viewIds: (Archify.levels.active() && Archify.guidedViews.count)
-        ? Array.prototype.map.call(document.querySelectorAll('#guided-view-chapters li'), function (li) { return li.getAttribute('data-view-id') || ''; })
-        : [],
-      guidedHidden: document.getElementById('guided-views').hidden,
+      guidedViews: typeof Archify.guidedViews !== 'undefined' || Boolean(document.getElementById('guided-views')),
       finderCount: Archify.finder.count,
       railHidden: document.getElementById('level-rail').hidden,
       hash: location.hash
@@ -129,8 +123,7 @@ test('Levels drill-down switches the stage, rail, and every stage-bound module',
   assert.deepEqual(initial.crumbs, ['Root']);
   assert.equal(initial.railHidden, false);
   assert.equal(initial.radarCount, 2, 'radar must describe the root level');
-  assert.equal(initial.viewCount, 1, 'root level chapters are installed on load');
-  assert.equal(initial.guidedHidden, false);
+  assert.equal(initial.guidedViews, false, 'guided views stay retired, even when sources author meta.views');
   assert.equal(initial.finderCount, 2, 'finder must describe the root level');
 
   // Every level's drill relationship is marked once, so switching cannot
@@ -156,16 +149,7 @@ test('Levels drill-down switches the stage, rail, and every stage-bound module',
   assert.equal(afterDrill.hash, '#level=mid');
   assert.equal(afterDrill.radarCount, 3, 'radar rebuilds against the new level');
   assert.equal(afterDrill.finderCount, 3, 'finder re-points at the new level');
-  assert.equal(afterDrill.viewCount, 2, 'chapters follow the level on stage');
-  assert.equal(afterDrill.guidedHidden, false);
-
-  // Chapters must focus the level they belong to, not the one that loaded.
-  const chapter = await run(`(function(){
-    Archify.guidedViews.activate('midone');
-    return { active: Archify.guidedViews.active(), focus: Archify.guidedViews.focus() };
-  })()`);
-  assert.equal(chapter.active, 'midone');
-  assert.deepEqual(chapter.focus, ['one', 'two']);
+  assert.equal(afterDrill.guidedViews, false);
 
   // Export must serialize the level on stage, not the first one in the file.
   const exported = await run(`(function(){
@@ -179,8 +163,6 @@ test('Levels drill-down switches the stage, rail, and every stage-bound module',
   assert.equal(deeper, 'root/mid/leaf');
   const atLeaf = await snapshot();
   assert.equal(atLeaf.radarCount, 1);
-  assert.equal(atLeaf.viewCount, 0, 'a level without chapters installs none');
-  assert.equal(atLeaf.guidedHidden, true, 'the strip hides rather than keep stale chapters');
   assert.deepEqual(atLeaf.crumbs, ['Root', 'Mid', 'Leaf']);
 
   // Escape walks back up one level.
@@ -193,9 +175,6 @@ test('Levels drill-down switches the stage, rail, and every stage-bound module',
   assert.equal(backHome.active, 'root');
   assert.equal(backHome.radarCount, 2);
   assert.equal(backHome.hash, '');
-  assert.equal(backHome.viewCount, 1, 'returning restores the root chapters');
-  assert.deepEqual(await run(`Archify.guidedViews.focus()`), [], 'no chapter is active after a level change');
-
   // A deep link opens directly on the named level.
   await load(artifact, '#level=leaf');
   const deepLinked = await snapshot();
@@ -203,8 +182,6 @@ test('Levels drill-down switches the stage, rail, and every stage-bound module',
   assert.equal(deepLinked.stageLevel, 'leaf');
   assert.deepEqual(deepLinked.visibleCards, ['leaf']);
   assert.equal(deepLinked.radarCount, 1, 'modules bind to the deep-linked level, not the first one');
-  assert.equal(deepLinked.viewCount, 0, 'a deep-linked level installs its own chapters');
-
   // An ordinary single-diagram artifact keeps the rail out of the document
   // flow entirely; a hidden-but-laid-out rail would cost invisible height and
   // stall the adaptive reader.
@@ -217,12 +194,21 @@ test('Levels drill-down switches the stage, rail, and every stage-bound module',
       railHeight: rail ? rail.getBoundingClientRect().height : null,
       stageIsOnlySvg: document.querySelectorAll('.diagram-container > svg').length === 1,
       readerActive: Archify.readerLayout.active(),
-      overflow: document.documentElement.scrollHeight > window.innerHeight
+      pageHeight: document.documentElement.scrollHeight,
+      pageHeightWithoutRail: (function () {
+        if (!rail) return document.documentElement.scrollHeight;
+        var parent = rail.parentNode;
+        var next = rail.nextSibling;
+        parent.removeChild(rail);
+        var height = document.documentElement.scrollHeight;
+        parent.insertBefore(rail, next);
+        return height;
+      })()
     };
   })()`);
   assert.equal(plainState.levels, 0);
   assert.equal(plainState.railHidden, true);
   assert.equal(plainState.railHeight, 0, 'a hidden rail must take no layout height');
   assert.equal(plainState.stageIsOnlySvg, true);
-  assert.equal(plainState.overflow, false);
+  assert.equal(plainState.pageHeight, plainState.pageHeightWithoutRail, 'the hidden rail must not change page height');
 });

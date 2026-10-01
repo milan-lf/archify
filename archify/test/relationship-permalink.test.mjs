@@ -66,8 +66,8 @@ test('authored relationship identity and readable-v2 compiler keys survive sourc
     relationshipKey(second.html, 'request-chat'),
     relationshipKey(first.html, 'request-chat'),
   );
-  assert.match(first.html, /viewerReplaceHash\(\{ relation: record\.id, focus: null/);
-  assert.match(second.html, /viewerReplaceHash\(\{ relation: record\.id, focus: null/);
+  assert.match(first.html, /replaceFocusHash\(\{ relation: record\.id, focus: null/);
+  assert.match(second.html, /replaceFocusHash\(\{ relation: record\.id, focus: null/);
 });
 
 test('relationship ids stay optional and duplicate ids fail closed in the shared zero-install path', () => {
@@ -106,7 +106,7 @@ test('the viewer restores and copies stable relation links without exposing nume
   assert.match(html, /target\.setAttribute\('data-relationship-id', record\.id\)/);
   assert.match(html, /button\.setAttribute\('data-relationship-id', relationship\.id\)/);
   assert.match(html, /copyBtn\.textContent = viewerText\('viewer\.passport\.copyRelation'\)/);
-  assert.match(html, /viewerReplaceHash\(\{ relation: record\.id, focus: null/);
+  assert.match(html, /replaceFocusHash\(\{ relation: record\.id, focus: null/);
   assert.match(html, /var relation = params\.get\('relation'\)/);
   assert.match(html, /inspectRelationshipById\(relation, \{ updateUrl: false, toggle: false \}\)/);
   assert.match(html, /if \(html\.getAttribute\('data-embed'\) === 'true'\) return false/);

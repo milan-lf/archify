@@ -12604,6 +12604,16 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       var manualLensPosition = null;
       var reachabilityMode = null;
       var activeReachability = null;
+      // A caller-supplied urlKey (for example `view`) is written into a shared
+      // hash, so it is remembered and removed with the focus it stands for.
+      var customHashKey = null;
+      function replaceFocusHash(updates) {
+        if (customHashKey &amp;&amp; !Object.prototype.hasOwnProperty.call(updates, customHashKey)) {
+          updates[customHashKey] = null;
+        }
+        customHashKey = null;
+        viewerReplaceHash(updates);
+      }
       var svgNamespace = &#39;http://www.w3.org/2000/svg&#39;;
       var reducedMotionQuery = window.matchMedia ? window.matchMedia(&#39;(prefers-reduced-motion: reduce)&#39;) : null;
       var finePointerQuery = window.matchMedia ? window.matchMedia(&#39;(hover: hover) and (pointer: fine)&#39;) : null;
@@ -12710,7 +12720,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
         if (options.updateUrl === true &amp;&amp; activeIds.length === 1) {
           try {
-            viewerReplaceHash({ focus: activeIds[0], reach: null, relation: null, route: null, lens: null });
+            replaceFocusHash({ focus: activeIds[0], reach: null, relation: null, route: null, lens: null });
           } catch (_) {}
         }
       }
@@ -12786,7 +12796,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
         if (options.updateUrl !== false) {
           try {
-            viewerReplaceHash({
+            replaceFocusHash({
               focus: activeIds[0], reach: direction, relation: null, route: null, lens: null,
             });
           } catch (_) {}
@@ -13373,7 +13383,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         });
         revealPinnedRelationship(record);
         if (options.updateUrl !== false &amp;&amp; record.id) {
-          try { viewerReplaceHash({ relation: record.id, focus: null, reach: null, route: null, lens: null }); } catch (_) {}
+          try { replaceFocusHash({ relation: record.id, focus: null, reach: null, route: null, lens: null }); } catch (_) {}
         }
         return true;
       }
@@ -13881,7 +13891,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           Archify.view.reset({ automatic: true });
         }
         if (options.updateUrl !== false) {
-          try { viewerReplaceHash({ focus: null, reach: null, relation: null, route: null, lens: null }); } catch (_) {}
+          try { replaceFocusHash({ focus: null, reach: null, relation: null, route: null, lens: null }); } catch (_) {}
         }
         if (restoreNode) {
           try { restoreNode.focus({ preventScroll: true }); }
@@ -13956,7 +13966,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             var hashUpdates = { reach: null, relation: null, route: null, lens: null };
             hashUpdates[key] = value;
             if (key !== &#39;focus&#39;) hashUpdates.focus = null;
-            viewerReplaceHash(hashUpdates);
+            replaceFocusHash(hashUpdates);
+            if (key !== &#39;focus&#39; &amp;&amp; key !== &#39;level&#39;) customHashKey = key;
           } catch (_) {}
         }
         return true;
@@ -18675,7 +18686,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       var rail = document.getElementById(&#39;level-rail&#39;);
       var crumbs = document.getElementById(&#39;level-crumbs&#39;);
       var children = document.getElementById(&#39;level-children&#39;);
-      var guided = document.getElementById(&#39;guided-views&#39;);
       if (!container || !rail || !crumbs || !children) return inert;
 
       var byId = Object.create(null);
@@ -18733,8 +18743,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         try { if (Archify.routeProbe) Archify.routeProbe.clear(); } catch (_) {}
         try { if (Archify.finder) Archify.finder.close(); } catch (_) {}
         try { if (Archify.radar) Archify.radar.close(); } catch (_) {}
-        try { if (Archify.guidedViews &amp;&amp; Archify.guidedViews.isPlaying()) Archify.guidedViews.pause(); } catch (_) {}
-        try { if (Archify.guidedViews) Archify.guidedViews.showAll(); } catch (_) {}
       }
 
       // Which node opens which level is a fixed property of the document, not
@@ -18917,20 +18925,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         renderRail();
         renderZoomOut();
 
-        // Each level authors its own chapters, so install the ones belonging
-        // to the level now on stage. A level without chapters hides the strip
-        // rather than leaving the previous level&#39;s stops on screen.
-        var skipViews = options &amp;&amp; options.skipViews;
-        if (!skipViews &amp;&amp; Archify.guidedViews &amp;&amp; typeof Archify.guidedViews.load === &#39;function&#39;) {
-          Archify.guidedViews.load((byId[id].views || []).map(function (view) {
-            // Hand over a copy: installing filters `focus` against the level
-            // on stage, and the manifest entry must stay reusable on return.
-            return { id: view.id, label: view.label, note: view.note, focus: (view.focus || []).slice() };
-          }));
-        } else if (!skipViews &amp;&amp; guided) {
-          guided.hidden = true;
-        }
-
         document.documentElement.setAttribute(&#39;data-active-level&#39;, id);
         Archify.stage.notify({ level: id, previous: options &amp;&amp; options.previous });
 
@@ -19020,8 +19014,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       var requested = requestedLevel();
       var initial = requested.present ? (requested.id || root) : (manifest.active || root);
       activeId = null;
-      show(initial, { updateHash: initial !== root &amp;&amp; !requested.present, skipViews: initial === root });
-      if (activeId !== initial) show(root, { updateHash: false, skipViews: true });
+      show(initial, { updateHash: initial !== root &amp;&amp; !requested.present });
+      if (activeId !== initial) show(root, { updateHash: false });
 
       return {
         count: manifest.levels.length,
@@ -27373,6 +27367,16 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       var manualLensPosition = null;
       var reachabilityMode = null;
       var activeReachability = null;
+      // A caller-supplied urlKey (for example `view`) is written into a shared
+      // hash, so it is remembered and removed with the focus it stands for.
+      var customHashKey = null;
+      function replaceFocusHash(updates) {
+        if (customHashKey &amp;&amp; !Object.prototype.hasOwnProperty.call(updates, customHashKey)) {
+          updates[customHashKey] = null;
+        }
+        customHashKey = null;
+        viewerReplaceHash(updates);
+      }
       var svgNamespace = &#39;http://www.w3.org/2000/svg&#39;;
       var reducedMotionQuery = window.matchMedia ? window.matchMedia(&#39;(prefers-reduced-motion: reduce)&#39;) : null;
       var finePointerQuery = window.matchMedia ? window.matchMedia(&#39;(hover: hover) and (pointer: fine)&#39;) : null;
@@ -27479,7 +27483,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
         if (options.updateUrl === true &amp;&amp; activeIds.length === 1) {
           try {
-            viewerReplaceHash({ focus: activeIds[0], reach: null, relation: null, route: null, lens: null });
+            replaceFocusHash({ focus: activeIds[0], reach: null, relation: null, route: null, lens: null });
           } catch (_) {}
         }
       }
@@ -27555,7 +27559,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         }
         if (options.updateUrl !== false) {
           try {
-            viewerReplaceHash({
+            replaceFocusHash({
               focus: activeIds[0], reach: direction, relation: null, route: null, lens: null,
             });
           } catch (_) {}
@@ -28142,7 +28146,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         });
         revealPinnedRelationship(record);
         if (options.updateUrl !== false &amp;&amp; record.id) {
-          try { viewerReplaceHash({ relation: record.id, focus: null, reach: null, route: null, lens: null }); } catch (_) {}
+          try { replaceFocusHash({ relation: record.id, focus: null, reach: null, route: null, lens: null }); } catch (_) {}
         }
         return true;
       }
@@ -28650,7 +28654,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           Archify.view.reset({ automatic: true });
         }
         if (options.updateUrl !== false) {
-          try { viewerReplaceHash({ focus: null, reach: null, relation: null, route: null, lens: null }); } catch (_) {}
+          try { replaceFocusHash({ focus: null, reach: null, relation: null, route: null, lens: null }); } catch (_) {}
         }
         if (restoreNode) {
           try { restoreNode.focus({ preventScroll: true }); }
@@ -28725,7 +28729,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             var hashUpdates = { reach: null, relation: null, route: null, lens: null };
             hashUpdates[key] = value;
             if (key !== &#39;focus&#39;) hashUpdates.focus = null;
-            viewerReplaceHash(hashUpdates);
+            replaceFocusHash(hashUpdates);
+            if (key !== &#39;focus&#39; &amp;&amp; key !== &#39;level&#39;) customHashKey = key;
           } catch (_) {}
         }
         return true;
@@ -33444,7 +33449,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       var rail = document.getElementById(&#39;level-rail&#39;);
       var crumbs = document.getElementById(&#39;level-crumbs&#39;);
       var children = document.getElementById(&#39;level-children&#39;);
-      var guided = document.getElementById(&#39;guided-views&#39;);
       if (!container || !rail || !crumbs || !children) return inert;
 
       var byId = Object.create(null);
@@ -33502,8 +33506,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         try { if (Archify.routeProbe) Archify.routeProbe.clear(); } catch (_) {}
         try { if (Archify.finder) Archify.finder.close(); } catch (_) {}
         try { if (Archify.radar) Archify.radar.close(); } catch (_) {}
-        try { if (Archify.guidedViews &amp;&amp; Archify.guidedViews.isPlaying()) Archify.guidedViews.pause(); } catch (_) {}
-        try { if (Archify.guidedViews) Archify.guidedViews.showAll(); } catch (_) {}
       }
 
       // Which node opens which level is a fixed property of the document, not
@@ -33686,20 +33688,6 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         renderRail();
         renderZoomOut();
 
-        // Each level authors its own chapters, so install the ones belonging
-        // to the level now on stage. A level without chapters hides the strip
-        // rather than leaving the previous level&#39;s stops on screen.
-        var skipViews = options &amp;&amp; options.skipViews;
-        if (!skipViews &amp;&amp; Archify.guidedViews &amp;&amp; typeof Archify.guidedViews.load === &#39;function&#39;) {
-          Archify.guidedViews.load((byId[id].views || []).map(function (view) {
-            // Hand over a copy: installing filters `focus` against the level
-            // on stage, and the manifest entry must stay reusable on return.
-            return { id: view.id, label: view.label, note: view.note, focus: (view.focus || []).slice() };
-          }));
-        } else if (!skipViews &amp;&amp; guided) {
-          guided.hidden = true;
-        }
-
         document.documentElement.setAttribute(&#39;data-active-level&#39;, id);
         Archify.stage.notify({ level: id, previous: options &amp;&amp; options.previous });
 
@@ -33789,8 +33777,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       var requested = requestedLevel();
       var initial = requested.present ? (requested.id || root) : (manifest.active || root);
       activeId = null;
-      show(initial, { updateHash: initial !== root &amp;&amp; !requested.present, skipViews: initial === root });
-      if (activeId !== initial) show(root, { updateHash: false, skipViews: true });
+      show(initial, { updateHash: initial !== root &amp;&amp; !requested.present });
+      if (activeId !== initial) show(root, { updateHash: false });
 
       return {
         count: manifest.levels.length,
