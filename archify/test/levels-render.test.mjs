@@ -21,7 +21,7 @@ function architecture(title, ids, { viewBox = [900, 500], cards = true } = {}) {
   return {
     schema_version: 1,
     diagram_type: 'architecture',
-    meta: { title, viewBox },
+    meta: { title, viewBox, output: 'level.html' },
     components: ids.map((id, index) => ({
       id,
       type: index % 2 === 0 ? 'backend' : 'database',
@@ -186,7 +186,7 @@ test('levels: the viewer manifest inverts the authored parent into a drill targe
   assert.deepEqual(data.levels[1].viewBox, [900, 500]);
 });
 
-test('levels: per-level guided views travel in the manifest, root views drive load', () => {
+test('levels: per-level views travel in the levels manifest', () => {
   const dir = workspace();
   const root = architecture('Root', ['alpha', 'beta']);
   root.meta.views = [{ id: 'rootview', label: 'Root view', focus: ['alpha'] }];
@@ -210,12 +210,6 @@ test('levels: per-level guided views travel in the manifest, root views drive lo
   const data = levelsData(html);
   assert.deepEqual(data.levels[0].views.map((v) => v.id), ['rootview']);
   assert.deepEqual(data.levels[1].views.map((v) => v.id), ['childview']);
-
-  // The already-shipped guided-views module reads one array on load; it must
-  // see the root level's views, not the child's.
-  const shipped = html.match(/<script id="archify-guided-views-data" type="application\/json">([\s\S]*?)<\/script>/);
-  assert.ok(shipped);
-  assert.deepEqual(JSON.parse(shipped[1]).map((v) => v.id), ['rootview']);
 });
 
 test('levels: a level that fails layout fails the whole document with its own diagnostic', () => {

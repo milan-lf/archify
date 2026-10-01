@@ -3,6 +3,7 @@
   "diagram_type": "architecture",
   "meta": {
     "title": "Sample Web App — System Context",
+    "output": "web-platform-context.html",
     "quality_profile": "showcase",
     "viewBox": [
       1120,

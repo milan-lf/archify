@@ -72,10 +72,6 @@
         return readerPaused || reducedMotion() || hasSuspension();
       }
       function ownerLabel(value) {
-        if (value === 'story') return viewerText('viewer.owner.story');
-        if (value === 'chapter') return viewerText('viewer.owner.chapter');
-        if (value === 'chapter-preview') return viewerText('viewer.owner.chapterPreview');
-        if (value === 'handoff') return viewerText('viewer.owner.handoff');
         if (value === 'route') return viewerText('viewer.owner.route');
         if (value === 'lens') return viewerText('viewer.owner.lens');
         if (value === 'relationship') return viewerText('viewer.owner.relationship');
@@ -97,12 +93,6 @@
         btn.setAttribute('aria-pressed', paused ? 'false' : 'true');
         btn.disabled = systemPaused;
         label.textContent = viewerText(paused ? 'viewer.motion.still' : 'viewer.motion.live');
-        if (paused && lastEffectivePaused !== true && Archify.guidedViews && Archify.guidedViews.isPlaying()) {
-          Archify.guidedViews.pause();
-        }
-        if (paused && lastEffectivePaused !== true && Archify.guidedViews && Archify.guidedViews.settleHandoff) {
-          Archify.guidedViews.settleHandoff(systemPaused ? 'reduced-motion' : (hasSuspension() ? 'hidden' : 'still'));
-        }
         if (paused && lastEffectivePaused !== true && Archify.routeProbe && Archify.routeProbe.isJourneyPlaying && Archify.routeProbe.isJourneyPlaying()) {
           Archify.routeProbe.pauseJourney({ preserveElapsed: true, reason: systemPaused ? 'reduced-motion' : (hasSuspension() ? 'hidden' : 'still') });
         }
@@ -141,8 +131,6 @@
       }
       function deriveOwner() {
         if (!svg) return '';
-        if (svg.hasAttribute('data-story-playing') || svg.hasAttribute('data-story-follow')) return 'story';
-        if (svg.hasAttribute('data-story-active')) return 'chapter';
         if (svg.hasAttribute('data-route-picking') || svg.hasAttribute('data-route-active')) return 'route';
         if (svg.hasAttribute('data-lens-active')) return 'lens';
         if (svg.hasAttribute('data-relationship-preview-active')) return 'relationship';
@@ -236,7 +224,7 @@
         var ownerObserverOptions = {
           attributes: true,
           attributeFilter: [
-            'data-story-playing', 'data-story-follow', 'data-story-active', 'data-route-picking', 'data-route-active',
+            'data-route-picking', 'data-route-active',
             'data-lens-active', 'data-relationship-preview-active', 'data-intent-trace-active',
             'data-focus-active', 'data-legend-preview-active'
           ]

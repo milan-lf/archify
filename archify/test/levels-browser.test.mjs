@@ -15,7 +15,7 @@ function architecture(title, ids, viewBox, views) {
   return {
     schema_version: 1,
     diagram_type: 'architecture',
-    meta: { title, viewBox, ...(views ? { views } : {}) },
+    meta: { title, viewBox, output: 'level.html', ...(views ? { views } : {}) },
     components: ids.map((id, index) => ({
       id,
       type: index % 2 === 0 ? 'backend' : 'database',

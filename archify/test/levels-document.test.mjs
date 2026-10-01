@@ -22,7 +22,7 @@ function architecture(title, componentIds = ['a']) {
   return {
     schema_version: 1,
     diagram_type: 'architecture',
-    meta: { title },
+    meta: { title, output: 'level.html' },
     components: componentIds.map((id) => ({ id, type: 'backend', label: id })),
   };
 }
