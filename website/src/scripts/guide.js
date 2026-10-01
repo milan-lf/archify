@@ -41,7 +41,7 @@
         document.getElementById('samples').innerHTML = t('samples').map(function (sample) { return '<button class="chip" type="button" data-query="'+escapeHtml(sample[1])+'">'+escapeHtml(sample[0])+'</button>'; }).join('');
       }
       function renderFilters() {
-        var labels = {"en":{"architecture":"Architecture","workflow":"Workflow","sequence":"Sequence","dataflow":"Data flow","lifecycle":"Lifecycle"},"zh":{"architecture":"架构图","workflow":"工作流","sequence":"时序图","dataflow":"数据流","lifecycle":"生命周期"}};
+        var labels = {"en":{"architecture":"Architecture","workflow":"Workflow","sequence":"Sequence","dataflow":"Data flow","lifecycle":"Lifecycle","levels":"Levels"},"zh":{"architecture":"架构图","workflow":"工作流","sequence":"时序图","dataflow":"数据流","lifecycle":"生命周期","levels":"分层文档"}};
         document.getElementById('filters').innerHTML = ['all'].concat(types).map(function (type) { return '<button class="filter '+(activeType === type ? 'active':'')+'" type="button" data-filter="'+type+'">'+escapeHtml(type === 'all' ? t('all') : labels[language][type])+'</button>'; }).join('');
       }
       function renderCards() {

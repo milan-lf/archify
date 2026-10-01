@@ -73,7 +73,7 @@ function twoLevelFixture() {
   const manifestPath = writeJson(dir, 'doc.levels.json', {
     schema_version: 1,
     diagram_type: 'levels',
-    meta: { title: 'Two Level Doc' },
+    meta: { title: 'Two Level Doc', output: 'levels.html' },
     levels: [
       { id: 'root', label: 'Root', source: 'root.architecture.json' },
       { id: 'child', label: 'Child', source: 'child.architecture.json', parent: { level: 'root', node: 'beta' } },
@@ -197,7 +197,7 @@ test('levels: per-level views travel in the levels manifest', () => {
   const manifestPath = writeJson(dir, 'doc.levels.json', {
     schema_version: 1,
     diagram_type: 'levels',
-    meta: { title: 'Views' },
+    meta: { title: 'Views', output: 'levels.html' },
     levels: [
       { id: 'root', label: 'Root', source: 'root.architecture.json' },
       { id: 'child', label: 'Child', source: 'child.architecture.json', parent: { level: 'root', node: 'beta' } },
@@ -221,7 +221,7 @@ test('levels: a level that fails layout fails the whole document with its own di
   const manifestPath = writeJson(dir, 'doc.levels.json', {
     schema_version: 1,
     diagram_type: 'levels',
-    meta: { title: 'Broken' },
+    meta: { title: 'Broken', output: 'levels.html' },
     levels: [
       { id: 'root', label: 'Root', source: 'root.architecture.json' },
       { id: 'broken', label: 'Broken', source: 'broken.architecture.json', parent: { level: 'root', node: 'beta' } },
@@ -243,7 +243,7 @@ test('levels: cross-level document problems are reported before any rendering', 
   const manifestPath = writeJson(dir, 'doc.levels.json', {
     schema_version: 1,
     diagram_type: 'levels',
-    meta: { title: 'Bad parent' },
+    meta: { title: 'Bad parent', output: 'levels.html' },
     levels: [
       { id: 'root', label: 'Root', source: 'root.architecture.json' },
       { id: 'child', label: 'Child', source: 'child.architecture.json', parent: { level: 'root', node: 'nonexistent' } },
@@ -265,7 +265,7 @@ test('levels: a level without cards contributes no card block', () => {
   const manifestPath = writeJson(dir, 'doc.levels.json', {
     schema_version: 1,
     diagram_type: 'levels',
-    meta: { title: 'Sparse cards' },
+    meta: { title: 'Sparse cards', output: 'levels.html' },
     levels: [
       { id: 'root', label: 'Root', source: 'root.architecture.json' },
       { id: 'child', label: 'Child', source: 'child.architecture.json', parent: { level: 'root', node: 'beta' } },

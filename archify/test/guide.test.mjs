@@ -52,6 +52,8 @@ test('guide: representative scenarios map to specialized recipes', () => {
     ['deployment lifecycle approval rollback state', 'deployment-lifecycle'],
     ['agent tool call approval gate MCP', 'agent-tool-call'],
     ['Show a system overview via an architecture diagram', 'system-overview'],
+    ['分层架构', 'system-overview'],
+    ['log levels', 'system-overview'],
     ['Draw deployment topology with named boundary crossings', 'deployment-ownership'],
     ['Explain an API request via a webhook callback', 'async-roundtrip'],
   ];

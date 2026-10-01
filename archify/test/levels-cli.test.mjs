@@ -121,7 +121,7 @@ test('deliver levels freezes the level sources beside the manifest snapshot', ()
   assert.ok(fs.existsSync(outPath));
 
   // Delivery must leave no staging directory behind.
-  assert.deepEqual(fs.readdirSync(dir), ['delivered.html']);
+  assert.deepEqual(fs.readdirSync(dir).sort(), ['delivered.delivery.json', 'delivered.html']);
 });
 
 test('deliver levels reports a broken document without writing an artifact', () => {
@@ -129,7 +129,7 @@ test('deliver levels reports a broken document without writing an artifact', () 
   fs.writeFileSync(path.join(dir, 'doc.levels.json'), JSON.stringify({
     schema_version: 1,
     diagram_type: 'levels',
-    meta: { title: 'Missing source' },
+    meta: { title: 'Missing source', output: 'out.html' },
     levels: [{ id: 'root', label: 'Root', source: 'absent.architecture.json' }],
   }));
   const outPath = path.join(dir, 'out.html');

@@ -321,10 +321,13 @@
       }
       function updateHash() {
         try {
-          var hash = selectedKinds.length
-            ? '#lens=' + selectedKinds.map(encodeURIComponent).join('~')
-            : '';
-          history.replaceState(null, '', location.pathname + location.search + hash);
+          viewerReplaceHash({
+            lens: selectedKinds.length ? selectedKinds.join('~') : null,
+            focus: null,
+            reach: null,
+            relation: null,
+            route: null,
+          });
         } catch (_) {}
       }
       function updateTrigger() {

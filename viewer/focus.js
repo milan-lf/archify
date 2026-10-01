@@ -159,7 +159,7 @@
         }
         if (options.updateUrl === true && activeIds.length === 1) {
           try {
-            history.replaceState(null, '', location.pathname + location.search + '#focus=' + encodeURIComponent(activeIds[0]));
+            viewerReplaceHash({ focus: activeIds[0], reach: null, relation: null, route: null, lens: null });
           } catch (_) {}
         }
       }
@@ -235,8 +235,9 @@
         }
         if (options.updateUrl !== false) {
           try {
-            history.replaceState(null, '', location.pathname + location.search + '#focus=' +
-              encodeURIComponent(activeIds[0]) + '&reach=' + direction);
+            viewerReplaceHash({
+              focus: activeIds[0], reach: direction, relation: null, route: null, lens: null,
+            });
           } catch (_) {}
         }
         if (options.reveal !== false && Archify.view && typeof Archify.view.reveal === 'function') {
@@ -821,7 +822,7 @@
         });
         revealPinnedRelationship(record);
         if (options.updateUrl !== false && record.id) {
-          try { history.replaceState(null, '', location.pathname + location.search + '#relation=' + encodeURIComponent(record.id)); } catch (_) {}
+          try { viewerReplaceHash({ relation: record.id, focus: null, reach: null, route: null, lens: null }); } catch (_) {}
         }
         return true;
       }
@@ -1329,7 +1330,7 @@
           Archify.view.reset({ automatic: true });
         }
         if (options.updateUrl !== false) {
-          try { history.replaceState(null, '', location.pathname + location.search); } catch (_) {}
+          try { viewerReplaceHash({ focus: null, reach: null, relation: null, route: null, lens: null }); } catch (_) {}
         }
         if (restoreNode) {
           try { restoreNode.focus({ preventScroll: true }); }
@@ -1400,7 +1401,12 @@
         if (options.updateUrl !== false) {
           var key = options.urlKey || 'focus';
           var value = options.urlValue || normalized[0];
-          try { history.replaceState(null, '', location.pathname + location.search + '#' + key + '=' + encodeURIComponent(value)); } catch (_) {}
+          try {
+            var hashUpdates = { reach: null, relation: null, route: null, lens: null };
+            hashUpdates[key] = value;
+            if (key !== 'focus') hashUpdates.focus = null;
+            viewerReplaceHash(hashUpdates);
+          } catch (_) {}
         }
         return true;
       }
@@ -1429,9 +1435,16 @@
         if (activeIds.length !== 1) return Promise.resolve(false);
         var record = pinnedRelationshipRecord();
         var relationId = record && record.id;
-        var value = location.href.replace(/#.*$/, '') + (relationId
-          ? '#relation=' + encodeURIComponent(relationId)
-          : '#focus=' + encodeURIComponent(activeIds[0]) + (reachabilityMode ? '&reach=' + reachabilityMode : ''));
+        var linkParams = new URLSearchParams();
+        var activeLevel = new URLSearchParams(String(location.hash || '').replace(/^#/, '')).get('level');
+        if (activeLevel) linkParams.set('level', activeLevel);
+        if (relationId) linkParams.set('relation', relationId);
+        else {
+          linkParams.set('focus', activeIds[0]);
+          if (reachabilityMode) linkParams.set('reach', reachabilityMode);
+        }
+        var linkQuery = linkParams.toString().replace(/\+/g, '%20').replace(/%7E/gi, '~');
+        var value = location.href.replace(/#.*$/, '') + (linkQuery ? '#' + linkQuery : '');
         var copy = navigator.clipboard && typeof navigator.clipboard.writeText === 'function'
           ? navigator.clipboard.writeText(value).then(function () { return true; }).catch(function () { return fallbackCopy(value); })
           : Promise.resolve(fallbackCopy(value));

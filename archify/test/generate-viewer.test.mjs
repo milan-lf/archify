@@ -136,7 +136,7 @@ test('assembly preserves literal replacement tokens, Unicode and source line end
   const f = fixture(t);
   const reader = '// $& $\' $` $$ 中文 \u{1f5fa}\r\n(function () {})();\r\n';
   const css = '/* === TOKENS === */\r\n:root { --x: 1; }\r\n';
-  fs.writeFileSync(f.shell, `<style>${viewerCssMarker}</style><script>\r\n${focusMarker}${routeMarker}${lensMarker}${intentMarker}${finderMarker}${outlineMarker}${motionMarker}${radarMarker}${cameraMarker}${chromeMarker}${exportMarker}${marker}</script>\n`);
+  fs.writeFileSync(f.shell, `<style>${viewerCssMarker}</style><script>\r\n${focusMarker}${routeMarker}${lensMarker}${intentMarker}${finderMarker}${outlineMarker}${motionMarker}${radarMarker}${cameraMarker}${chromeMarker}${exportMarker}${levelsMarker}${marker}</script>\n`);
   fs.writeFileSync(f.viewerCss, css);
   fs.writeFileSync(f.export, reader + cleanupMarker);
   fs.writeFileSync(f.cleanup, reader);
@@ -150,6 +150,7 @@ test('assembly preserves literal replacement tokens, Unicode and source line end
   fs.writeFileSync(f.lens, reader);
   fs.writeFileSync(f.route, reader);
   fs.writeFileSync(f.focus, reader);
+  fs.writeFileSync(f.levels, reader);
   fs.writeFileSync(f.reader, reader);
   assert.equal(f.run().status, 0);
   // The viewer.css file is inlined inside the <style> block. The marker sits
@@ -161,7 +162,7 @@ test('assembly preserves literal replacement tokens, Unicode and source line end
   const indentedCss = css.split('\n').map((line) => line.length === 0 ? line : '    ' + line).join('\n');
   assert.equal(
     fs.readFileSync(f.output, 'utf8'),
-    `<style>${indentedCss}</style><script>\r\n${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}</script>\n`,
+    `<style>${indentedCss}</style><script>\r\n${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}${reader}</script>\n`,
   );
   assert.equal(f.run('--check').status, 0);
 });

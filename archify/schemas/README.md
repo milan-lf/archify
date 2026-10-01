@@ -27,8 +27,8 @@ document binds several already-authored architecture diagrams into one
 drill-down artifact — the C4 case, where a node on one level opens the diagram
 that explains it.
 
-It owns no geometry. Each level keeps its own hand-placed coordinates, its own
-`cards`, and its own guided views, so every existing layout and composition
+It owns no geometry. Each level keeps its own hand-placed coordinates and its own
+`cards`, so every existing layout and composition
 check still runs against a single static canvas. This is why levels do not
 reverse the anti-auto-layout decision in `ROADMAP.md`: nothing reflows, and
 each level is validated exactly as it would be on its own.
@@ -37,7 +37,7 @@ each level is validated exactly as it would be on its own.
 {
   "schema_version": 1,
   "diagram_type": "levels",
-  "meta": { "title": "ST3 — C4 model", "quality_profile": "showcase" },
+  "meta": { "title": "ST3 — C4 model", "output": "st3-levels.html", "quality_profile": "showcase" },
   "levels": [
     { "id": "context", "label": "Context", "source": "l1.architecture.json" },
     { "id": "containers", "label": "Containers", "source": "l2.architecture.json",

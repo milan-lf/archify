@@ -258,19 +258,10 @@ function stageRenderedHtml(outputPath, html, mode) {
   throw error;
 }
 
-// Common CLI tail: fill the template and write the standalone HTML file.
-export function writeDiagram({ outPath, template, diagramType, meta, svg, cards, sourceEvidence = null }) {
-  if (!START_TYPES.has(diagramType)) throw new Error(`writeDiagram: unknown diagram type ${JSON.stringify(diagramType)}`);
+// Common CLI tail: publish already-built HTML through the same guarded path
+// every diagram type uses. A levels document composes that HTML itself.
+function publishRenderedHtml(outPath, html) {
   const outputGuard = outputPathGuards.get(outPath);
-  const html = applyTemplate(template, {
-    title: meta.title,
-    subtitle: meta.subtitle,
-    svg,
-    cards: renderCards(cards),
-    locale: meta.locale,
-    visualPreset: meta.visual_preset || 'classic',
-    sourceEvidence,
-  });
   let candidatePath;
   let candidateIdentity;
   let candidateBinding;
@@ -327,6 +318,20 @@ export function writeDiagram({ outPath, template, diagramType, meta, svg, cards,
       }
     }
   }
+}
+
+export function writeDiagram({ outPath, template, diagramType, meta, svg, cards, sourceEvidence = null }) {
+  if (!START_TYPES.has(diagramType)) throw new Error(`writeDiagram: unknown diagram type ${JSON.stringify(diagramType)}`);
+  const html = applyTemplate(template, {
+    title: meta.title,
+    subtitle: meta.subtitle,
+    svg,
+    cards: renderCards(cards),
+    locale: meta.locale,
+    visualPreset: meta.visual_preset || 'classic',
+    sourceEvidence,
+  });
+  publishRenderedHtml(outPath, html);
   console.log(outPath);
 }
 
@@ -340,10 +345,7 @@ export function guardOutputPath(outputRequest) {
 }
 
 export function writeLevelsDocument({ outPath, template, meta, svg, cards, levels, guidedViews = [], sourceEvidence = null }) {
-  const outputGuard = outputPathGuards.get(outPath);
-  if (outputGuard) resolveOutputPath(outputGuard);
-  fs.mkdirSync(path.dirname(outPath), { recursive: true });
-  fs.writeFileSync(outPath, applyTemplate(template, {
+  const html = applyTemplate(template, {
     title: meta.title,
     subtitle: meta.subtitle,
     svg,
@@ -353,8 +355,8 @@ export function writeLevelsDocument({ outPath, template, meta, svg, cards, level
     guidedViews,
     sourceEvidence,
     levels,
-  }));
-  outputPathGuards.delete(outPath);
+  });
+  publishRenderedHtml(outPath, html);
   console.log(outPath);
 }
 

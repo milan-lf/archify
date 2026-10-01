@@ -34,7 +34,7 @@ function writeJson(dir, name, value) {
   return target;
 }
 
-function manifest(dir, levels, meta = { title: 'Levels' }) {
+function manifest(dir, levels, meta = { title: 'Levels', output: 'levels.html' }) {
   return writeJson(dir, 'doc.levels.json', {
     schema_version: 1,
     diagram_type: 'levels',
@@ -325,7 +325,7 @@ test('levels: the manifest itself is schema-checked', () => {
   const unknownField = writeJson(dir, 'extra.levels.json', {
     schema_version: 1,
     diagram_type: 'levels',
-    meta: { title: 'X' },
+    meta: { title: 'X', output: 'levels.html' },
     levels: [{ id: 'root', label: 'Root', source: 'root.architecture.json', colour: 'red' }],
   });
   assert.ok(codesFrom(() => loadLevelsDocument(unknownField)).codes.includes('schema/additionalProperties'));

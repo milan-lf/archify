@@ -21,7 +21,7 @@ considered diagram.
 {
   "schema_version": 1,
   "diagram_type": "levels",
-  "meta": { "title": "ST3 — C4 model", "quality_profile": "showcase" },
+  "meta": { "title": "ST3 — C4 model", "output": "st3-levels.html", "quality_profile": "showcase" },
   "levels": [
     { "id": "context", "label": "Context", "source": "l1-context.architecture.json",
       "note": "Who uses the system and what it depends on." },
@@ -62,8 +62,9 @@ one diagnostic at a time. Diagnostic codes are documented in
 level file never learns that it has children, so an existing architecture
 diagram can be bound in unmodified. Never edit a parent to record a child.
 
-**Keep cards and guided views per level**, in each level's own file. They
-describe that level, and the viewer swaps them with the diagram.
+**Keep cards per level**, in each level's own file. They describe that level,
+and the viewer swaps them with the diagram. `meta.views` stays retired: a
+levels document does not install a guided-view strip.
 
 **Author each level to stand alone.** A level that would fail validation by
 itself fails the whole document, and the fix belongs in the level file, not the
@@ -126,12 +127,10 @@ overview. Search, radar, route probing and export all rebind to the level on
 screen; export serializes the level you are looking at, not the first one in
 the file.
 
-**Guided views are per level.** Each level authors its own chapters in its own
-file, and the strip installs the set belonging to the level on screen. Chapter
-focus is filtered against that level's nodes, so stop counts are truthful for
-what is visible. A level with no chapters hides the strip rather than leaving
-the previous level's stops on screen, and no chapter is left active across a
-level change.
+**Guided views stay retired.** Source diagrams may still carry the old
+`meta.views` shape, and the levels manifest keeps a copy so the data is not
+thrown away, but the viewer does not install a chapter strip. Do not author
+views expecting them to appear.
 
 ## Size
 

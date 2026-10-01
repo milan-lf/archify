@@ -257,7 +257,7 @@ const RAW_RECIPES = [
       en: { descriptionPrompt: 'Use an Archify levels document to turn this description into C4 levels: [describe the system boundary, its main containers, and the inside of the one container worth opening]. Author each level as its own architecture diagram that reads on its own, declare where each child level drills from, and mark missing facts instead of inventing them.' },
       zh: { descriptionPrompt: '用 Archify 的 levels 文档把下面的描述画成 C4 分层：[描述系统边界、主要容器，以及值得展开的那个容器内部]。每一层单独编写为一张能独立阅读的架构图，并声明每个子层从哪里下钻；缺失的信息要标明而不是编造。' },
     },
-    signals: [['c4 model', 16], ['c4', 14], ['drill down', 12], ['levels', 10], ['context and containers', 10], ['container diagram', 9], ['component diagram', 8], ['zoom into a component', 7], ['C4 模型', 16], ['分层', 12], ['下钻', 12], ['层级', 10], ['容器图', 9], ['组件图', 8]],
+    signals: [['c4 model', 16], ['c4 levels', 14], ['c4', 14], ['drill-down levels', 12], ['drill down', 12], ['context and containers', 10], ['container diagram', 9], ['component diagram', 8], ['zoom into a component', 7], ['C4 模型', 16], ['C4 分层', 14], ['分层下钻', 12], ['下钻', 12], ['容器图', 9], ['组件图', 8]],
     en: {
       title: 'C4 levels', question: 'How does one system read at context, container, and component depth?',
       summary: 'Several authored architecture levels bound into one artifact, where a node opens the diagram that explains it.',

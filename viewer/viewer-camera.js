@@ -506,6 +506,7 @@
       // to coordinates that no longer mean the same thing.
       Archify.stage.onChange(function () {
         svg = Archify.stage.svg();
+        viewBox = svg && svg.viewBox ? svg.viewBox.baseVal : null;
         reset({ automatic: true });
         requestAnimationFrame(syncSemantic);
       });

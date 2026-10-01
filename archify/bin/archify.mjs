@@ -4570,6 +4570,7 @@ async function commandDeliver(args) {
   const provenanceCandidatePath = path.join(stagingDirectory, 'delivery-provenance.json');
   let commitRecoveryBackups = [];
   const stagingOwnership = [];
+  const levelsStagingDirectories = [];
   const captureDeliveryStagingFile = (filePath, content) => captureOwnedStagingFile(
     stagingOwnership,
     filePath,
@@ -4714,10 +4715,16 @@ async function commandDeliver(args) {
     // already passed containment — including the symlink check — are staged,
     // and the delivered artifact is built entirely from frozen bytes.
     if (type === 'levels') {
-      const { loadLevelsDocument } = await import('../renderers/shared/levels-document.mjs');
-      let resolvedLevels;
       try {
-        resolvedLevels = loadLevelsDocument(inputPath);
+        const directories = await stageFrozenLevelSources(inputPath, stagingDirectory, {
+          reservedNames: [
+            'specification.snapshot.json',
+            'delivery-provenance.json',
+            path.basename(outputPath),
+          ],
+          onFile: (staged, bytes) => captureDeliveryStagingFile(staged, artifactIdentity(bytes)),
+        });
+        levelsStagingDirectories.push(...directories);
       } catch (error) {
         await reportDeliveryFailure({
           json,
@@ -4727,17 +4734,16 @@ async function commandDeliver(args) {
           output: outputPath,
           error: error.message,
           diagnostics: Array.isArray(error?.archifyDiagnostics) ? error.archifyDiagnostics : [diagnostic({
-            code: 'delivery/levels-document',
+            code: error.code === 'delivery/levels-staging-collision'
+              ? 'delivery/levels-staging-collision'
+              : 'delivery/freeze-levels',
             message: error.message,
             subject: { input: inputPath },
+            evidence: { ...(error?.code ? { systemCode: error.code } : {}), reason: error.message },
+            supportedFixes: ['rename the level source so it does not match a delivery staging filename'],
           })],
         });
         return;
-      }
-      for (const level of resolvedLevels.levels) {
-        const staged = path.join(stagingDirectory, ...level.source.split('/'));
-        fs.mkdirSync(path.dirname(staged), { recursive: true });
-        fs.copyFileSync(level.sourcePath, staged);
       }
     }
 
@@ -5170,7 +5176,20 @@ async function commandDeliver(args) {
           fileBindingRuntime,
         );
       } catch (error) {
-        console.error(`Warning: could not remove delivery staging directory "${stagingDirectory}": ${error.message}`);
+        for (const directory of [...levelsStagingDirectories].sort((left, right) => right.length - left.length)) {
+          try {
+            if (fs.readdirSync(directory).length === 0) fs.rmdirSync(directory);
+          } catch {
+            // Already gone, or still holding an entry we do not own.
+          }
+        }
+        try {
+          if (!removeOwnedEmptyStagingDirectory(stagingDirectory, stagingIdentity, { throwOnFailure: true })) {
+            throw error;
+          }
+        } catch {
+          console.error(`Warning: could not remove delivery staging directory "${stagingDirectory}": ${error.message}`);
+        }
       }
     }
   }
@@ -6714,6 +6733,42 @@ async function commandMigrate(args) {
   }
 }
 
+// A levels manifest resolves sources relative to itself. Validation and
+// delivery both render a detached snapshot, so the level files have to be
+// copied beside that snapshot or loadLevelsDocument reports them missing.
+async function stageFrozenLevelSources(documentPath, destinationDirectory, { reservedNames = [], onFile } = {}) {
+  const { loadLevelsDocument } = await import('../renderers/shared/levels-document.mjs');
+  const resolvedLevels = loadLevelsDocument(documentPath);
+  const reserved = new Set(reservedNames);
+  const directories = [];
+  for (const level of resolvedLevels.levels) {
+    const parts = level.source.split('/');
+    const collision = parts.find((part) => reserved.has(part));
+    if (collision) {
+      const error = new Error(`Level source "${level.source}" collides with the staging name "${collision}".`);
+      error.code = 'delivery/levels-staging-collision';
+      throw error;
+    }
+    const staged = path.join(destinationDirectory, ...parts);
+    let parent = path.dirname(staged);
+    const created = [];
+    while (parent !== destinationDirectory && parent.startsWith(destinationDirectory + path.sep)) {
+      created.push(parent);
+      parent = path.dirname(parent);
+    }
+    for (const directory of created.reverse()) {
+      if (!fs.existsSync(directory)) {
+        fs.mkdirSync(directory);
+        directories.push(directory);
+      }
+    }
+    const bytes = fs.readFileSync(level.sourcePath);
+    fs.writeFileSync(staged, bytes, { flag: 'wx' });
+    if (onFile) onFile(staged, bytes);
+  }
+  return directories;
+}
+
 async function commandValidate(args) {
   const qualityArgs = extractQualityArgs(args);
   const repoArgs = extractRepoRootArgs(qualityArgs.rest);
@@ -6812,6 +6867,31 @@ async function commandValidate(args) {
   try {
     const snapshot = path.join(tmp, 'specification.snapshot.json');
     fs.writeFileSync(snapshot, specification, { flag: 'wx' });
+    // The checker renders the frozen snapshot, not the original path, so a
+    // levels document's relative sources have to be staged beside it.
+    if (type === 'levels') {
+      try {
+        await stageFrozenLevelSources(path.resolve(input), tmp, {
+          reservedNames: ['specification.snapshot.json', `${type}.html`],
+        });
+      } catch (error) {
+        reportValidateFailure({
+          json,
+          stage: 'input',
+          type,
+          input: path.resolve(input),
+          error: error.message,
+          diagnostics: Array.isArray(error?.archifyDiagnostics) ? error.archifyDiagnostics : [diagnostic({
+            code: 'levels/document',
+            message: error.message,
+            subject: { input: path.resolve(input) },
+          })],
+          status: 1,
+        });
+        exitCode = 1;
+        return;
+      }
+    }
     const render = runNode([renderer, snapshot, out], {
       stdio: 'pipe',
       env: rendererEnv(quality, repoRoot, true),

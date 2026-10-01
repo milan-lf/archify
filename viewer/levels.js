@@ -2,8 +2,11 @@
       var data = document.getElementById('archify-levels-data');
       var inert = {
         count: 0,
+        root: null,
         active: function () { return null; },
         path: function () { return []; },
+        labelOf: function () { return null; },
+        drillTargets: function () { return []; },
         show: function () { return false; },
         up: function () { return false; }
       };
@@ -105,10 +108,10 @@
         badge.setAttribute('data-drill-badge', childId);
         badge.setAttribute('role', 'button');
         badge.setAttribute('tabindex', '0');
-        badge.setAttribute('aria-label', 'Open ' + label);
+        badge.setAttribute('aria-label', viewerText('viewer.levels.openNamed', { label: label }));
         badge.setAttribute('transform', 'translate(' + (x + width - 15) + ' ' + (y + 15) + ')');
         var title = document.createElementNS(SVG_NS, 'title');
-        title.textContent = 'Open ' + label;
+        title.textContent = viewerText('viewer.levels.openNamed', { label: label });
         badge.appendChild(title);
         var disc = document.createElementNS(SVG_NS, 'circle');
         disc.setAttribute('class', 'level-drill-badge-disc');
@@ -189,8 +192,8 @@
           return;
         }
         zoomOutLabel.textContent = parent.label;
-        zoomOutBtn.title = 'Back to ' + parent.label;
-        zoomOutBtn.setAttribute('aria-label', 'Back to ' + parent.label);
+        zoomOutBtn.title = viewerText('viewer.levels.back', { label: parent.label });
+        zoomOutBtn.setAttribute('aria-label', viewerText('viewer.levels.back', { label: parent.label }));
         zoomOut.hidden = false;
         container.setAttribute('data-level-drilled', 'true');
       }
@@ -212,7 +215,7 @@
             button.disabled = true;
             if (level.note) button.title = level.note;
           } else {
-            button.title = 'Back to ' + level.label;
+            button.title = viewerText('viewer.levels.back', { label: level.label });
           }
           if (index > 0) item.setAttribute('data-level-depth', String(index));
           item.appendChild(button);
@@ -221,14 +224,24 @@
 
         children.textContent = '';
         var targets = drillTargets[activeId] || Object.create(null);
-        Object.keys(targets).forEach(function (nodeId) {
+        var targetNodes = Object.keys(targets);
+        if (targetNodes.length) {
+          var openLabel = document.createElement('span');
+          openLabel.className = 'level-children-label';
+          openLabel.textContent = viewerText('viewer.levels.open');
+          children.appendChild(openLabel);
+        }
+        targetNodes.forEach(function (nodeId) {
           var childId = targets[nodeId];
           var button = document.createElement('button');
           button.type = 'button';
           button.className = 'level-child';
           button.setAttribute('data-level-target', childId);
           button.textContent = byId[childId].label;
-          button.title = 'Open ' + byId[childId].label + ' from ' + nodeId;
+          button.title = viewerText('viewer.levels.openFrom', {
+            label: byId[childId].label,
+            node: nodeId,
+          });
           children.appendChild(button);
         });
         children.hidden = children.childNodes.length === 0;
@@ -268,12 +281,7 @@
         Archify.stage.notify({ level: id, previous: options && options.previous });
 
         if (!options || options.updateHash !== false) {
-          var hash = id === root ? '' : '#level=' + id;
-          if (window.location.hash !== hash) {
-            try {
-              window.history.replaceState(null, '', hash || window.location.pathname + window.location.search);
-            } catch (_) { window.location.hash = hash; }
-          }
+          viewerReplaceHash({ level: id === root ? null : id });
         }
         return true;
       }
@@ -328,27 +336,37 @@
         if (event.key !== 'Escape' || event.defaultPrevented) return;
         if (activeId === root) return;
         // Yield to any owner that treats Escape as dismissal of its own layer.
-        if (document.documentElement.hasAttribute('data-focus-active')) return;
+        var stageSvg = svgFor(activeId);
+        if (stageSvg && stageSvg.hasAttribute('data-focus-active')) return;
         if (up()) event.preventDefault();
       });
 
-      function fromHash() {
-        var match = /(?:^|[#&])level=([A-Za-z][A-Za-z0-9_-]*)/.exec(window.location.hash || '');
-        return match && byId[match[1]] ? match[1] : null;
+      // Absent means "keep the level already on stage". An explicit level that
+      // is not in the manifest falls back to root; a hash written by focus or
+      // route, with no level param, must not.
+      function requestedLevel() {
+        var hash = window.location.hash || '';
+        if (!/(?:^|[#&])level=/.test(hash)) return { present: false, id: null };
+        var match = /(?:^|[#&])level=([^&]*)/.exec(hash);
+        var id = match ? decodeURIComponent(match[1]) : '';
+        return { present: true, id: byId[id] ? id : null };
       }
 
       window.addEventListener('hashchange', function () {
-        var requested = fromHash() || root;
-        if (requested !== activeId) show(requested, { updateHash: false });
+        var requested = requestedLevel();
+        if (!requested.present) return;
+        var next = requested.id || root;
+        if (next !== activeId) show(next, { updateHash: false });
       });
 
       markDrillable();
 
       // Establish the starting level without rewriting a deep link that
       // already names it.
-      var initial = fromHash() || manifest.active || root;
+      var requested = requestedLevel();
+      var initial = requested.present ? (requested.id || root) : (manifest.active || root);
       activeId = null;
-      show(initial, { updateHash: initial !== root && !fromHash(), skipViews: initial === root });
+      show(initial, { updateHash: initial !== root && !requested.present, skipViews: initial === root });
       if (activeId !== initial) show(root, { updateHash: false, skipViews: true });
 
       return {

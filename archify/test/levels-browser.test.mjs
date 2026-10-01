@@ -51,7 +51,7 @@ test('Levels drill-down switches the stage, rail, and every stage-bound module',
   write('doc.levels.json', {
     schema_version: 1,
     diagram_type: 'levels',
-    meta: { title: 'Levels browser fixture' },
+    meta: { title: 'Levels browser fixture', output: 'levels.html' },
     levels: [
       { id: 'root', label: 'Root', source: 'root.architecture.json' },
       { id: 'mid', label: 'Mid', source: 'mid.architecture.json', parent: { level: 'root', node: 'beta' } },

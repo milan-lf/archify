@@ -188,7 +188,9 @@
       }
       function replaceRouteHash(value) {
         try {
-          history.replaceState(null, '', location.pathname + location.search + (value ? '#route=' + value : ''));
+          viewerReplaceHash(value
+            ? { route: value, focus: null, reach: null, relation: null, lens: null }
+            : { route: null });
         } catch (_) {}
       }
       function renderPlaceholder(copy) {
@@ -754,7 +756,7 @@
         setTrigger(true);
         if (Archify.exportMenu && typeof Archify.exportMenu.syncRouteShare === 'function') Archify.exportMenu.syncRouteShare();
         if (options.updateUrl !== false) {
-          replaceRouteHash(encodeURIComponent(startId) + '~' + encodeURIComponent(endId));
+          replaceRouteHash(startId + '~' + endId);
         }
         showJourneyOverview({ reveal: false });
         if (Archify.view && typeof Archify.view.reveal === 'function') {
@@ -899,7 +901,11 @@
       }
       function copyLink() {
         if (mode !== 'result') return Promise.resolve(false);
-        var value = location.href.replace(/#.*$/, '') + '#route=' + encodeURIComponent(startId) + '~' + encodeURIComponent(endId);
+        var routeParams = new URLSearchParams();
+        var routeLevel = new URLSearchParams(String(location.hash || '').replace(/^#/, '')).get('level');
+        if (routeLevel) routeParams.set('level', routeLevel);
+        routeParams.set('route', startId + '~' + endId);
+        var value = location.href.replace(/#.*$/, '') + '#' + routeParams.toString().replace(/\+/g, '%20').replace(/%7E/gi, '~');
         var copy = navigator.clipboard && typeof navigator.clipboard.writeText === 'function'
           ? navigator.clipboard.writeText(value).then(function () { return true; }).catch(function () { return fallbackCopy(value); })
           : Promise.resolve(fallbackCopy(value));

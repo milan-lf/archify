@@ -304,7 +304,37 @@ function checkShape(levels) {
 export function loadLevelsDocument(manifestPath) {
   const resolvedManifest = path.resolve(manifestPath);
   const manifestDir = path.dirname(resolvedManifest);
-  const document = JSON.parse(fs.readFileSync(resolvedManifest, 'utf8'));
+  let raw;
+  try {
+    raw = fs.readFileSync(resolvedManifest, 'utf8');
+  } catch (error) {
+    const filesystem = typeof error?.code === 'string'
+      && typeof error?.syscall === 'string'
+      && typeof error?.errno === 'number';
+    if (!filesystem) throw error;
+    const message = `Input could not be read: ${error.message}`;
+    throwDiagnosticError(message, [{
+      code: 'input/read',
+      message,
+      subject: { input: resolvedManifest },
+      evidence: { systemCode: error.code, reason: error.message },
+      supportedFixes: ['provide one readable JSON input file'],
+    }]);
+  }
+  let document;
+  try {
+    document = JSON.parse(raw);
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error;
+    const message = `Input JSON could not be parsed: ${error.message}`;
+    throwDiagnosticError(message, [{
+      code: 'input/json-parse',
+      message,
+      subject: { input: resolvedManifest },
+      evidence: { reason: error.message },
+      supportedFixes: ['repair the JSON syntax and run validation again'],
+    }]);
+  }
   validateSchema('levels', document);
 
   const levels = document.levels;
